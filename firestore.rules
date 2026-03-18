@@ -1,0 +1,143 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* -------- AUTH HELPERS -------- */
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRole() {
+      return userDoc().data.role;
+    }
+
+    function userTenant() {
+      return userDoc().data.tenantId;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && userRole() == "super_admin";
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && userRole() == "admin";
+    }
+
+    function isTrainer() {
+      return isAuthenticated() && userRole() == "trainer";
+    }
+
+    function isUser() {
+      return isAuthenticated() && userRole() == "user";
+    }
+
+    function belongsToTenant(tenantId) {
+      return userTenant() == tenantId;
+    }
+
+    /* -------- USERS -------- */
+
+    match /users/{userId} {
+
+      allow read: if request.auth.uid == userId || isSuperAdmin();
+
+      allow create: if request.auth.uid == userId;
+
+      allow update: if request.auth.uid == userId || isSuperAdmin();
+
+      allow delete: if isSuperAdmin();
+    }
+
+    /* -------- TENANTS -------- */
+
+    match /tenants/{tenantId} {
+
+      allow create: if isSuperAdmin();
+
+      allow read: if isAuthenticated() &&
+        (isSuperAdmin() || belongsToTenant(tenantId));
+
+      allow update, delete: if isSuperAdmin();
+
+      /* -------- ADMINS -------- */
+
+      match /admins/{adminId} {
+
+        allow read: if isAuthenticated() &&
+          (isSuperAdmin() || belongsToTenant(tenantId));
+
+        allow create, update, delete: if isSuperAdmin();
+      }
+
+      /* -------- TRAINERS -------- */
+
+      match /trainers/{trainerId} {
+
+        allow read: if isAuthenticated() &&
+          (isSuperAdmin() || belongsToTenant(tenantId));
+
+        allow create, update, delete: if
+          isAdmin() && belongsToTenant(tenantId);
+      }
+
+      /* -------- EVENTS -------- */
+
+      match /events/{eventId} {
+
+        allow read: if true;
+
+        allow create: if
+          (isAdmin() || isTrainer()) &&
+          belongsToTenant(tenantId);
+
+        allow update, delete: if
+          isAdmin() &&
+          belongsToTenant(tenantId);
+
+        /* -------- SLOTS -------- */
+
+        match /slots/{slotId} {
+
+          allow read: if true;
+
+          allow create, update, delete: if
+            (isAdmin() || isTrainer()) &&
+            belongsToTenant(tenantId);
+        }
+      }
+
+      /* -------- BOOKINGS -------- */
+
+      match /bookings/{bookingId} {
+
+        allow create: if
+          isUser() &&
+          belongsToTenant(tenantId);
+
+        allow read: if
+          request.auth.uid == resource.data.userId ||
+          ((isAdmin() || isTrainer() || isSuperAdmin()) &&
+          belongsToTenant(tenantId));
+
+        allow update, delete: if
+          isAdmin() || isSuperAdmin();
+      }
+    }
+
+    /* -------- PUBLIC EVENTS -------- */
+
+    match /publicEvents/{eventId} {
+
+      allow read: if true;
+
+      allow write: if
+        isAdmin() || isSuperAdmin();
+    }
+  }
+}
