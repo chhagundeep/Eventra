@@ -1,8 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export', // Tells Next.js to build a static site
+  // Remove or comment out 'output: export'
+  // output: 'export', 
   images: {
-    unoptimized: true, // Required for static exports
+    // You can keep this or set it to false if you use a provider like Vercel
+    unoptimized: true, 
   },
 };
 
