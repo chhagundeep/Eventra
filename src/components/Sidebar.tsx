@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { LayoutDashboard, Building2, Users, Calendar, Settings, LogOut, Zap } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, Settings, LogOut, Zap, X } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { usePathname } from "next/navigation";
@@ -18,18 +18,25 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
   ];
 
   return (
-    // ADDED bg-[#0a0a0a] HERE TO FIX THE DOUBLE LOOK
-    <div className="flex flex-col h-full p-6 bg-[#0a0a0a] border-r border-zinc-800/50">
-      {/* Branding */}
-      <div className="flex items-center gap-3 mb-10 px-2">
-        <div className="h-9 w-9 bg-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-900/40">
-          <Zap size={20} color="white" fill="white" />
+    <div className="flex flex-col h-full bg-[#0a0a0a] border-r border-zinc-800/50">
+      {/* Branding - Only inside the Sidebar now */}
+      <div className="p-8 flex items-center justify-between">
+        <div className="flex items-center gap-3 px-2">
+          <div className="h-9 w-9 bg-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-900/40">
+            <Zap size={20} color="white" fill="white" />
+          </div>
+          <span className="text-xl font-black tracking-tighter text-white uppercase italic leading-none">
+            Eventra
+          </span>
         </div>
-        <span className="text-xl font-black tracking-tighter text-white uppercase italic">Eventra</span>
+        {/* Mobile Close Button */}
+        <button onClick={onClose} className="lg:hidden p-2 text-zinc-500 hover:text-white">
+          <X size={20} />
+        </button>
       </div>
 
       {/* Nav Links */}
-      <nav className="space-y-1.5 flex-1">
+      <nav className="flex-1 px-6 space-y-1.5 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = pathname === item.path;
           return (
@@ -56,21 +63,27 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
         <Link
           href="/super-admin/config"
           onClick={onClose}
-          className="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold text-sm text-zinc-500 hover:bg-zinc-900 hover:text-zinc-100 transition-all"
+          className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold text-sm transition-all ${
+            pathname === "/super-admin/config" 
+              ? "bg-orange-600 text-white" 
+              : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-100"
+          }`}
         >
           <Settings size={18} />
           Config
         </Link>
       </nav>
 
-      {/* Logout */}
-      <button 
-        onClick={() => signOut(auth)} 
-        className="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold text-sm text-zinc-600 hover:bg-red-500/10 hover:text-red-500 transition-all mt-auto"
-      >
-        <LogOut size={18} />
-        Terminate Session
-      </button>
+      {/* Logout Area */}
+      <div className="p-6 border-t border-zinc-800/50">
+        <button 
+          onClick={() => signOut(auth)} 
+          className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold text-sm text-zinc-600 hover:bg-red-500/10 hover:text-red-500 transition-all"
+        >
+          <LogOut size={18} />
+          Terminate Session
+        </button>
+      </div>
     </div>
   );
 }

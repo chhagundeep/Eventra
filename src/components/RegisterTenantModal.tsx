@@ -1,15 +1,34 @@
 "use client";
 
-import React, { useState } from "react";
-import { X, Building2, Mail, Shield, Copy, Key, Zap } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Building2, Mail, Copy, Zap, ShieldCheck, Globe } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
+import toast from "react-hot-toast";
 
-export default function RegisterTenantModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
+interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  editData?: any; 
+}
+
+export default function RegisterTenantModal({ isOpen, onClose, editData }: ModalProps) {
   const [loading, setLoading] = useState(false);
   const [successData, setSuccessData] = useState<{ email: string, pass: string } | null>(null);
   const [formData, setFormData] = useState({ orgName: "", adminEmail: "", plan: "Pro" });
+
+  useEffect(() => {
+    if (editData) {
+      setFormData({
+        orgName: editData.name || "",
+        adminEmail: editData.adminEmail || "",
+        plan: editData.plan || "Pro",
+      });
+    } else {
+      setFormData({ orgName: "", adminEmail: "", plan: "Pro" });
+    }
+  }, [editData, isOpen]);
 
   const generateSlug = (name: string) => name.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-');
   const generatePassword = () => "EV-" + Math.random().toString(36).slice(-8).toUpperCase();
@@ -20,30 +39,44 @@ export default function RegisterTenantModal({ isOpen, onClose }: { isOpen: boole
     setLoading(true);
 
     try {
-      const tenantId = generateSlug(formData.orgName);
-      const tempPassword = generatePassword();
+      if (editData) {
+        const tenantRef = doc(db, "tenants", editData.id);
+        await updateDoc(tenantRef, {
+          name: formData.orgName,
+          adminEmail: formData.adminEmail,
+          plan: formData.plan,
+          updatedAt: serverTimestamp(),
+        });
+        toast.success("Organization profile updated");
+        onClose();
+      } else {
+        const tenantId = generateSlug(formData.orgName);
+        const tempPassword = generatePassword();
 
-      await setDoc(doc(db, "tenants", tenantId), {
-        name: formData.orgName,
-        adminEmail: formData.adminEmail,
-        tempPassword: tempPassword,
-        plan: formData.plan,
-        status: "active",
-        createdAt: serverTimestamp(),
-      });
+        await setDoc(doc(db, "tenants", tenantId), {
+          name: formData.orgName,
+          adminEmail: formData.adminEmail,
+          tempPassword: tempPassword,
+          plan: formData.plan,
+          status: "active",
+          createdAt: serverTimestamp(),
+        });
 
-      const adminId = formData.adminEmail.replace(/[@.]/g, '_');
-      await setDoc(doc(db, "tenants", tenantId, "users", adminId), {
-        email: formData.adminEmail,
-        password: tempPassword,
-        role: "admin",
-        status: "active",
-        joinedAt: serverTimestamp(),
-      });
+        const adminId = formData.adminEmail.replace(/[@.]/g, '_');
+        await setDoc(doc(db, "tenants", tenantId, "users", adminId), {
+          email: formData.adminEmail,
+          password: tempPassword,
+          role: "admin",
+          status: "active",
+          joinedAt: serverTimestamp(),
+        });
 
-      setSuccessData({ email: formData.adminEmail, pass: tempPassword });
+        setSuccessData({ email: formData.adminEmail, pass: tempPassword });
+        toast.success("New tenant deployed successfully");
+      }
     } catch (error) {
       console.error(error);
+      toast.error("Operation failed");
     } finally {
       setLoading(false);
     }
@@ -53,7 +86,6 @@ export default function RegisterTenantModal({ isOpen, onClose }: { isOpen: boole
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-end">
-          {/* Backdrop */}
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -62,20 +94,24 @@ export default function RegisterTenantModal({ isOpen, onClose }: { isOpen: boole
             className="absolute inset-0 bg-black/60 backdrop-blur-xl"
           />
 
-          {/* Modal Panel */}
           <motion.div 
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="relative h-full w-full max-w-xl bg-[#0a0a0a] border-l border-zinc-800 shadow-[ -20px_0_50px_rgba(0,0,0,0.5)] flex flex-col text-white"
+            className="relative h-full w-full max-w-xl bg-[#0a0a0a] border-l border-zinc-800 shadow-2xl flex flex-col text-white"
           >
+            {/* HEADER */}
             <div className="p-10 border-b border-zinc-800/50 flex justify-between items-center bg-gradient-to-b from-zinc-900/50 to-transparent">
               <div>
                 <h2 className="text-3xl font-black uppercase italic tracking-tighter">
-                  {successData ? <>Node <span className="text-emerald-500">Deployed</span></> : <>New <span className="text-orange-600">Tenant</span></>}
+                  {successData ? <>Organisation <span className="text-emerald-500">Added</span></> : 
+                   editData ? <>Update <span className="text-blue-500">Tenant</span></> : 
+                   <>New <span className="text-orange-600">Tenant</span></>}
                 </h2>
-                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mt-2">Initialize Organization Instance</p>
+                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mt-2">
+                  {editData ? "Modify Organization Parameters" : "Initialize Organization Instance"}
+                </p>
               </div>
               <button onClick={() => { setSuccessData(null); onClose(); }} className="p-3 bg-zinc-800/50 hover:bg-zinc-800 rounded-2xl text-zinc-500 transition-colors">
                 <X size={24} />
@@ -95,7 +131,10 @@ export default function RegisterTenantModal({ isOpen, onClose }: { isOpen: boole
                         <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">System Token</label>
                         <div className="flex items-center justify-between bg-black/40 p-5 rounded-2xl border border-zinc-800">
                           <span className="text-3xl font-black text-orange-500 tracking-[0.3em] font-mono">{successData.pass}</span>
-                          <button onClick={() => navigator.clipboard.writeText(successData.pass)} className="p-3 bg-zinc-800 rounded-xl hover:text-orange-500 transition-colors"><Copy size={20} /></button>
+                          <button onClick={() => {
+                            navigator.clipboard.writeText(successData.pass);
+                            toast.success("Token copied to clipboard");
+                          }} className="p-3 bg-zinc-800 rounded-xl hover:text-orange-500 transition-colors"><Copy size={20} /></button>
                         </div>
                       </div>
                    </div>
@@ -103,24 +142,71 @@ export default function RegisterTenantModal({ isOpen, onClose }: { isOpen: boole
                 </motion.div>
               ) : (
                 <form className="p-10 space-y-10" onSubmit={handleSubmit}>
+                  {/* ORG NAME */}
                   <div className="space-y-4">
                     <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] ml-2">Core Identity</label>
                     <div className="group relative">
                       <Building2 className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-orange-600 transition-colors" size={20} />
-                      <input type="text" required className="w-full bg-zinc-900/50 border border-zinc-800 rounded-3xl py-6 pl-16 pr-6 outline-none focus:border-orange-600 transition-all font-bold placeholder:text-zinc-700" placeholder="ORGANIZATION NAME" onChange={(e) => setFormData({...formData, orgName: e.target.value})} />
+                      <input 
+                        type="text" 
+                        required 
+                        value={formData.orgName}
+                        disabled={!!editData}
+                        className="w-full bg-zinc-900/50 border border-zinc-800 rounded-3xl py-6 pl-16 pr-6 outline-none focus:border-orange-600 transition-all font-bold placeholder:text-zinc-700 disabled:opacity-50" 
+                        placeholder="ORGANIZATION NAME" 
+                        onChange={(e) => setFormData({...formData, orgName: e.target.value})} 
+                      />
                     </div>
                   </div>
 
+                  {/* ADMIN EMAIL */}
                   <div className="space-y-4">
                     <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] ml-2">Administrative Contact</label>
                     <div className="group relative">
                       <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-orange-600 transition-colors" size={20} />
-                      <input type="email" required className="w-full bg-zinc-900/50 border border-zinc-800 rounded-3xl py-6 pl-16 pr-6 outline-none focus:border-orange-600 transition-all font-bold placeholder:text-zinc-700" placeholder="ADMIN@EMAIL.COM" onChange={(e) => setFormData({...formData, adminEmail: e.target.value})} />
+                      <input 
+                        type="email" 
+                        required 
+                        value={formData.adminEmail}
+                        className="w-full bg-zinc-900/50 border border-zinc-800 rounded-3xl py-6 pl-16 pr-6 outline-none focus:border-orange-600 transition-all font-bold placeholder:text-zinc-700" 
+                        placeholder="ADMIN@EMAIL.COM" 
+                        onChange={(e) => setFormData({...formData, adminEmail: e.target.value})} 
+                      />
+                    </div>
+                  </div>
+
+                  {/* PLAN SELECTION */}
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] ml-2">Service Tier Selection</label>
+                    <div className="grid grid-cols-2 gap-4">
+                      {[
+                        { id: 'Pro', icon: Globe, color: 'text-blue-500', border: 'border-blue-500/30', bg: 'bg-blue-500/5' },
+                        { id: 'Enterprise', icon: ShieldCheck, color: 'text-purple-500', border: 'border-purple-500/30', bg: 'bg-purple-500/5' }
+                      ].map((plan) => (
+                        <button
+                          key={plan.id}
+                          type="button"
+                          onClick={() => setFormData({...formData, plan: plan.id})}
+                          className={`relative flex flex-col items-center gap-3 p-6 rounded-[2rem] border transition-all duration-300 ${
+                            formData.plan === plan.id 
+                            ? `${plan.border} ${plan.bg} scale-[1.02] ring-1 ring-offset-4 ring-offset-black ring-zinc-800` 
+                            : 'border-zinc-800 bg-zinc-900/30 grayscale opacity-60 hover:opacity-100 hover:grayscale-0'
+                          }`}
+                        >
+                          <plan.icon size={28} className={plan.color} />
+                          <span className={`text-[10px] font-black uppercase tracking-widest ${plan.color}`}>
+                            {plan.id} Tier
+                          </span>
+                          {formData.plan === plan.id && (
+                            <motion.div layoutId="activePlan" className="absolute inset-0 rounded-[2rem] border-2 border-orange-600/20 pointer-events-none" />
+                          )}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
                   <button type="submit" disabled={loading} className="relative w-full bg-orange-600 text-white py-6 rounded-3xl font-black uppercase text-xs tracking-[0.3em] hover:bg-orange-500 shadow-2xl shadow-orange-900/40 group overflow-hidden transition-all">
-                    <span className="relative z-10">{loading ? "Synchronizing..." : "Finalize Deployment"}</span>
+                    <span className="relative z-10">{loading ? "Synchronizing..." : editData ? "Update Instance" : "Finalize Deployment"}</span>
                   </button>
                 </form>
               )}
