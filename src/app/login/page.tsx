@@ -6,12 +6,15 @@ import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { motion } from "framer-motion"; 
+import { ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,14 +22,9 @@ export default function LoginPage() {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
-      
       if (userDoc.exists()) {
         const role = userDoc.data().role;
-        // The redirection logic is role-dependent
-        if (role === "super_admin") router.push("/super-admin");
-        else if (role === "admin") router.push("/admin");
-        else if (role === "trainer") router.push("/trainer");
-        else router.push("/user"); // Fallback for standard users
+        router.push(`/${role.replace('_', '-')}`);
       }
     } catch (err: any) {
       setError("Invalid credentials. Please try again.");
@@ -34,100 +32,126 @@ export default function LoginPage() {
   };
 
   return (
-    <>
-      {/* This is the critical fix. Since globals.css is deleted, we must use 
-        internal CSS to define the widths and colors, as seen in your reference.
-      */}
-      <style>{`
-        /* Global Reset to prevent margins/padding that spoiled previous layouts */
-        html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; }
-        
-        /* Two-Column split screen container */
-        .login-wrapper { display: flex; min-height: 100vh; width: 100%; font-family: sans-serif; background-color: #0a0a0a; }
-        
-        /* Left Column (Image): Only show on large screens (lg:) */
-        .event-image-section { position: relative; width: 50%; display: none; }
-        @media (min-width: 1024px) { .event-image-section { display: block; } }
-        
-        /* Right Column (Form) */
-        .login-form-section { display: flex; width: 100%; flex-direction: column; align-items: center; justify-content: center; padding: 0 40px; background-color: #0a0a0a; }
-        @media (min-width: 1024px) { .login-form-section { width: 50%; } }
-        
-        /* Dark input field styling */
-        .custom-input { width: 100%; padding: 16px; margin-top: 8px; border-radius: 12px; background: #18181b; border: 1px solid #27272a; color: white; outline: none; box-sizing: border-box; }
-        .custom-input:focus { border-color: #f97316; box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1); }
-        
-        /* Primary Orange Button */
-        .login-submit-btn { width: 100%; padding: 16px; margin-top: 24px; border-radius: 12px; background-color: #f97316; color: white; font-weight: bold; border: none; cursor: pointer; transition: background 0.2s; font-size: 1.1rem; }
-        .login-submit-btn:hover { background-color: #ea580c; }
-      `}</style>
-
-      <main className="login-wrapper">
-        {/* Left Section: Visual Impact (as per the reference image) */}
-        <div className="event-image-section">
+    <main className="flex min-h-screen w-full bg-[#0a0a0a] overflow-hidden text-white">
+      {/* LEFT SECTION: Branding */}
+      <div className="relative hidden lg:flex lg:w-1/2 flex-col justify-between p-16 border-r border-zinc-800/50">
+        <motion.div 
+          initial={{ scale: 1.1, opacity: 0 }}
+          animate={{ scale: 1, opacity: 0.35 }}
+          transition={{ duration: 1.5, ease: "easeOut" }}
+          className="absolute inset-0"
+        >
           <Image
             src="https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?q=80&w=2070&auto=format&fit=crop"
             alt="Eventra Experience"
             fill
-            style={{ objectFit: 'cover', opacity: 0.4 }}
+            className="object-cover"
             priority
           />
-          {/* Brand Overlay - Top Left */}
-          <div style={{ position: 'absolute', left: '48px', top: '48px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ height: '48px', width: '48px', backgroundColor: '#f97316', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', color: 'white', fontSize: '1.5rem', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}>E</div>
-            <span style={{ fontSize: '1.875rem', fontWeight: '900', color: 'white', letterSpacing: '-1.5px' }}>Eventra</span>
-          </div>
-          
-          {/* Catchphrase Overlay - Bottom Left */}
-          <div style={{ position: 'absolute', bottom: '80px', left: '48px' }}>
-            <h2 style={{ fontSize: '4.5rem', fontWeight: '900', color: 'white', textTransform: 'uppercase', lineHeight: '0.9', margin: 0, letterSpacing: '-4px' }}>
-              Plan. <br /> Manage. <br /> <span style={{ color: '#f97316' }}>Succeed.</span>
-            </h2>
-          </div>
-        </div>
+        </motion.div>
+        
+        {/* Safe Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/60 to-transparent z-0" />
 
-        {/* Right Section: Form Section (The missing part) */}
-        <div className="login-form-section">
-          <div style={{ width: '100%', maxWidth: '400px' }}>
-            <div style={{ marginBottom: '40px', textAlign: 'left' }}>
-              <h1 style={{ fontSize: '2.25rem', fontWeight: '900', color: 'white', margin: 0 }}>Welcome Back</h1>
-              <p style={{ marginTop: '12px', color: '#71717a', fontSize: '1rem' }}>Enter your credentials to manage your events.</p>
-            </div>
+        <motion.div 
+          initial={{ x: -20, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="relative z-10 flex items-center gap-4"
+        >
+          <div className="h-12 w-12 bg-orange-600 rounded-2xl flex items-center justify-center font-black text-white text-2xl shadow-orange-900/40 shadow-2xl">
+            E
+          </div>
+          <span className="text-3xl font-black tracking-tighter text-white">Eventra</span>
+        </motion.div>
+        
+        <motion.div 
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.8 }}
+          className="relative z-10"
+        >
+          <h2 className="text-[5.5rem] font-black leading-[0.8] tracking-tighter uppercase italic text-white">
+            Plan. <br /> 
+            Manage. <br /> 
+            <span className="text-orange-600">Succeed.</span>
+          </h2>
+        </motion.div>
+      </div>
 
-            <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#a1a1aa', textTransform: 'uppercase', display: 'block' }}>Email Address</label>
+      {/* RIGHT SECTION: Form */}
+      <div className="flex w-full lg:w-1/2 flex-col items-center justify-center px-8 md:px-20 bg-[#0a0a0a] relative z-10">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="w-full max-w-md space-y-10"
+        >
+          <div className="space-y-3 text-left">
+            <h1 className="text-4xl font-black tracking-tight text-white">Sign In</h1>
+            <p className="text-zinc-500 font-medium">Welcome back to the Eventra platform.</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div className="group space-y-2">
+              <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.2em] ml-1">Email Address</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-orange-600 transition-colors" size={18} />
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-12 pr-5 py-4 rounded-2xl bg-zinc-900/50 border border-zinc-800 text-white outline-none focus:ring-4 focus:ring-orange-600/10 focus:border-orange-600 transition-all"
                   placeholder="admin@eventra.com"
-                  className="custom-input"
                 />
               </div>
+            </div>
 
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#a1a1aa', textTransform: 'uppercase', display: 'block' }}>Password</label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="custom-input"
-                />
-              </div>
+<div className="group space-y-2">
+  <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.2em] ml-1">Password</label>
+  <div className="relative">
+    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-orange-600 transition-colors z-10" size={18} />
+    
+    <input
+      type={showPassword ? "text" : "password"} // Switches between text and dots
+      required
+      value={password}
+      onChange={(e) => setPassword(e.target.value)}
+      className="w-full pl-12 pr-12 py-4 rounded-2xl bg-zinc-900/50 border border-zinc-800 text-white outline-none focus:ring-4 focus:ring-orange-600/10 focus:border-orange-600 transition-all"
+      placeholder="••••••••"
+    />
 
-              {error && <div style={{ p: '12px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', fontSize: '0.875rem' }}>{error}</div>}
+    {/* Custom Eye Icon that is ALWAYS visible and matches your theme */}
+    <button
+      type="button"
+      onClick={() => setShowPassword(!showPassword)}
+      className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-orange-500 transition-colors z-20"
+    >
+      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+    </button>
+  </div>
+</div>     {error && (
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-sm font-semibold"
+              >
+                {error}
+              </motion.div>
+            )}
 
-              <button type="submit" className="login-submit-btn">
-                Sign into Dashboard →
-              </button>
-            </form>
-          </div>
-        </div>
-      </main>
-    </>
+            <motion.button 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              type="submit" 
+              className="w-full py-5 rounded-2xl bg-orange-600 hover:bg-orange-500 text-white font-black text-lg flex items-center justify-center gap-3 transition-all shadow-2xl shadow-orange-900/20"
+            >
+              Sign into Dashboard <ArrowRight size={22} />
+            </motion.button>
+          </form>
+        </motion.div>
+      </div>
+    </main>
   );
 }
