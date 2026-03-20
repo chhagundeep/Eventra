@@ -84,7 +84,7 @@ export default function OrganizationDeepDive() {
           <Link href={`/super-admin/organizations/${id}/${stat.path}`} key={stat.label}>
             <motion.div 
               whileHover={{ y: -5 }}
-              className="bg-zinc-900/40 border border-zinc-800/50 p-8 rounded-[2rem] group cursor-pointer hover:border-zinc-600 transition-all"
+              className="bg-zinc-900/40 border border-zinc-800/50 p-8 rounded-4xl group cursor-pointer hover:border-zinc-600 transition-all"
             >
               <div className="flex items-center justify-between mb-4">
                 <stat.icon className={`${stat.color}`} size={28} />
