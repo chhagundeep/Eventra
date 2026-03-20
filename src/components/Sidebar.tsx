@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
-import { usePathname, useRouter } from "next/navigation"; // 1. Import useRouter
+import { usePathname, useRouter } from "next/navigation"; 
 import Link from "next/link";
 
 const ROLE_MENUS = {
@@ -38,15 +38,19 @@ const ROLE_MENUS = {
 
 export default function Sidebar({ onClose, role = "super-admin" }: { onClose?: () => void, role?: keyof typeof ROLE_MENUS }) {
   const pathname = usePathname();
-  const router = useRouter(); // 2. Initialize router
+  const router = useRouter(); 
 
   const menuItems = ROLE_MENUS[role];
 
-  // 3. Define the Logout Function
   const handleLogout = async () => {
     try {
-      await signOut(auth); // Clear Firebase session
-      router.push("/");    // Redirect to login page
+      // 1. Terminate the Firebase session
+      await signOut(auth); 
+      
+      // 2. Redirect to landing and overwrite history stack
+      // This prevents the back-button from returning to the dashboard
+      router.replace("/"); 
+      
       if (onClose) onClose();
     } catch (error) {
       console.error("Logout failed:", error);
@@ -120,7 +124,7 @@ export default function Sidebar({ onClose, role = "super-admin" }: { onClose?: (
       {/* Logout Area */}
       <div className="p-6 border-t border-zinc-800/50">
         <button 
-          onClick={handleLogout} // 4. Call the async function
+          onClick={handleLogout}
           className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold text-sm text-zinc-600 hover:bg-red-500/10 hover:text-red-500 transition-all"
         >
           <LogOut size={18} />

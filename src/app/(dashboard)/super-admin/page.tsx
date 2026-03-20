@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Building2, Globe, ShieldCheck, Activity, Plus, Key, Trash2, Edit3 } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase"; // Added auth import
 import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth"; // Added for auth guard
+import { useRouter } from "next/navigation";
 import RegisterTenantModal from "@/components/RegisterTenantModal";
 import DeleteModal from "@/components/DeleteModal"; 
 import toast from "react-hot-toast";
@@ -13,20 +15,45 @@ export default function SuperAdminDashboard() {
   const [tenants, setTenants] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<any>(null);
+  const router = useRouter();
 
-  // --- DELETE MODAL STATE ---
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [tenantToDelete, setTenantToDelete] = useState<{ id: string, name: string } | null>(null);
 
+  // AUTH GUARD: If user logs out, boot them immediately
   useEffect(() => {
-    const q = query(collection(db, "tenants"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const tenantData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setTenants(tenantData);
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        router.replace("/");
+      }
     });
+    return () => unsubscribeAuth();
+  }, [router]);
+
+  // DATA LISTENER
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const q = query(collection(db, "tenants"), orderBy("createdAt", "desc"));
+    
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        const tenantData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setTenants(tenantData);
+      },
+      (error) => {
+        // Prevents the "Internal Assertion Failed" crash during logout
+        if (error.code === "permission-denied") {
+          console.warn("Firestore listener detached on logout.");
+        } else {
+          console.error("Firestore error:", error);
+        }
+      }
+    );
+
     return () => unsubscribe();
   }, []);
 
@@ -38,7 +65,7 @@ export default function SuperAdminDashboard() {
       setIsDeleteModalOpen(false);
       setTenantToDelete(null);
     } catch (error) {
-      toast.error("Failed to terminate session");
+      toast.error("Failed to delete tenant");
     }
   };
 
@@ -49,7 +76,6 @@ export default function SuperAdminDashboard() {
 
   return (
     <div className="space-y-8 lg:space-y-12 px-4 sm:px-0 pb-10">
-      {/* HEADER SECTION - Column on mobile, Row on desktop */}
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
         <div className="text-center lg:text-left">
           <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black italic tracking-tighter uppercase leading-none">
@@ -69,7 +95,6 @@ export default function SuperAdminDashboard() {
         </motion.button>
       </div>
 
-      {/* STATS CARDS GRID - 1 column on mobile, 2 on tablet, 4 on desktop */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {[
           { label: "Active Tenants", value: tenants.length, icon: Globe, color: "text-blue-500", bg: "bg-blue-500/10" },
@@ -93,7 +118,6 @@ export default function SuperAdminDashboard() {
         ))}
       </div>
 
-      {/* TENANT LIST CONTAINER */}
       <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-3xl lg:rounded-[3rem] p-4 sm:p-6 lg:p-10">
         <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
           <h3 className="text-xs sm:text-sm font-black text-white uppercase tracking-[0.2em] flex items-center gap-3">
@@ -115,7 +139,6 @@ export default function SuperAdminDashboard() {
                 key={t.id} 
                 className="group flex flex-col md:flex-row md:items-center justify-between p-5 lg:p-6 bg-zinc-900/60 border border-zinc-800/50 hover:border-orange-600/30 rounded-2xl lg:rounded-[2rem] transition-all gap-5"
               >
-                {/* Organization Info */}
                 <div className="flex items-center gap-4 sm:gap-5 min-w-0">
                   <div className="flex-shrink-0 h-12 w-12 sm:h-14 sm:w-14 bg-zinc-800 rounded-xl lg:rounded-[1.25rem] flex items-center justify-center text-zinc-500 group-hover:text-orange-500 transition-colors">
                     <Building2 size={22} />
@@ -128,7 +151,6 @@ export default function SuperAdminDashboard() {
                   </div>
                 </div>
 
-                {/* Status & Actions - Wrapped for mobile flexibility */}
                 <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 sm:gap-6 pt-3 md:pt-0 border-t border-zinc-800/50 md:border-0">
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-black rounded-xl border border-zinc-800">
                     <Key size={12} className="text-orange-500" />
@@ -136,31 +158,14 @@ export default function SuperAdminDashboard() {
                       {t.tempPassword || 'SECURED'}
                     </span>
                   </div>
-
                   <div className={`px-4 py-1.5 border rounded-full text-[9px] font-black uppercase tracking-widest ${
                     t.plan === 'Enterprise' ? 'bg-purple-500/10 border-purple-500/20 text-purple-500' : 'bg-blue-500/10 border-blue-500/20 text-blue-500'
                   }`}>
                     {t.plan || 'Pro'} Tier
                   </div>
-                  
                   <div className="flex items-center gap-1">
-                    <button 
-                      onClick={() => handleEdit(t)}
-                      className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition-all"
-                      aria-label="Edit"
-                    >
-                      <Edit3 size={18} />
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setTenantToDelete({ id: t.id, name: t.name });
-                        setIsDeleteModalOpen(true);
-                      }}
-                      className="p-2 text-zinc-600 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
-                      aria-label="Delete"
-                    >
-                      <Trash2 size={18} />
-                    </button>
+                    <button onClick={() => handleEdit(t)} className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition-all"><Edit3 size={18} /></button>
+                    <button onClick={() => { setTenantToDelete({ id: t.id, name: t.name }); setIsDeleteModalOpen(true); }} className="p-2 text-zinc-600 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 size={18} /></button>
                   </div>
                 </div>
               </motion.div>
@@ -169,22 +174,8 @@ export default function SuperAdminDashboard() {
         </div>
       </div>
 
-      {/* MODALS */}
-      <DeleteModal 
-        isOpen={isDeleteModalOpen}
-        onClose={() => {
-          setIsDeleteModalOpen(false);
-          setTenantToDelete(null);
-        }}
-        onConfirm={confirmDelete}
-        orgName={tenantToDelete?.name || ""}
-      />
-
-      <RegisterTenantModal 
-        isOpen={isModalOpen} 
-        onClose={() => { setIsModalOpen(false); setEditingTenant(null); }}
-        editData={editingTenant} 
-      />
+      <DeleteModal isOpen={isDeleteModalOpen} onClose={() => { setIsDeleteModalOpen(false); setTenantToDelete(null); }} onConfirm={confirmDelete} orgName={tenantToDelete?.name || ""} />
+      <RegisterTenantModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingTenant(null); }} editData={editingTenant} />
     </div>
   );
 }
