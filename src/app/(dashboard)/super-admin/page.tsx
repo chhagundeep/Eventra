@@ -137,15 +137,15 @@ export default function SuperAdminDashboard() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 key={t.id} 
-                className="group flex flex-col md:flex-row md:items-center justify-between p-5 lg:p-6 bg-zinc-900/60 border border-zinc-800/50 hover:border-orange-600/30 rounded-2xl lg:rounded-[2rem] transition-all gap-5"
+                className="group flex flex-col md:flex-row md:items-center justify-between p-5 lg:p-6 bg-zinc-900/60 border border-zinc-800/50 hover:border-orange-600/30 rounded-2xl lg:rounded-4xl transition-all gap-5"
               >
                 <div className="flex items-center gap-4 sm:gap-5 min-w-0">
-                  <div className="flex-shrink-0 h-12 w-12 sm:h-14 sm:w-14 bg-zinc-800 rounded-xl lg:rounded-[1.25rem] flex items-center justify-center text-zinc-500 group-hover:text-orange-500 transition-colors">
+                  <div className="shrink-0 h-12 w-12 sm:h-14 sm:w-14 bg-zinc-800 rounded-xl lg:rounded-[1.25rem] flex items-center justify-center text-zinc-500 group-hover:text-orange-500 transition-colors">
                     <Building2 size={22} />
                   </div>
                   <div className="min-w-0">
                     <h4 className="font-bold text-white tracking-tight text-base sm:text-lg truncate">{t.name}</h4>
-                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-tight truncate max-w-[180px] sm:max-w-none">
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-tight truncate max-w-45 sm:max-w-none">
                       {t.adminEmail}
                     </p>
                   </div>
@@ -154,7 +154,7 @@ export default function SuperAdminDashboard() {
                 <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 sm:gap-6 pt-3 md:pt-0 border-t border-zinc-800/50 md:border-0">
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-black rounded-xl border border-zinc-800">
                     <Key size={12} className="text-orange-500" />
-                    <span className="font-mono text-[9px] sm:text-[10px] text-orange-500 font-black tracking-widest uppercase truncate max-w-[80px]">
+                    <span className="font-mono text-[9px] sm:text-[10px] text-orange-500 font-black tracking-widest uppercase truncate max-w-20">
                       {t.tempPassword || 'SECURED'}
                     </span>
                   </div>

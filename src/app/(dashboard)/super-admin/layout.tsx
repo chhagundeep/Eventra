@@ -27,14 +27,14 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
       {/* Mobile Overlay */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] lg:hidden"
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-100 lg:hidden"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
       {/* 1. SIDEBAR - Stays as-is for navigation */}
       <aside className={`
-        fixed inset-y-0 left-0 z-[110] w-72 transition-transform duration-300 ease-in-out
+        fixed inset-y-0 left-0 z-110 w-72 transition-transform duration-300 ease-in-out
         lg:relative lg:translate-x-0
         ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
       `}>
@@ -80,8 +80,8 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
         </header>
 
         {/* This main area now expands into the space previously held by the Right Panel */}
-        <main className="flex-1 overflow-y-auto p-6 lg:p-12 custom-scrollbar bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-orange-900/5 via-transparent to-transparent">
-          <div className="max-w-[1600px] mx-auto w-full">
+        <main className="flex-1 overflow-y-auto p-6 lg:p-12 custom-scrollbar bg-[radial-gradient(circle_at_top_right,var(--tw-gradient-stops))] from-orange-900/5 via-transparent to-transparent">
+          <div className="max-w-400 mx-auto w-full">
             {children}
           </div>
         </main>

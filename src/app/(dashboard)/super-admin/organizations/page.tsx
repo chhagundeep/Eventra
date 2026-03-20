@@ -90,7 +90,7 @@ export default function OrganizationsPage() {
       {/* RESTORED DATA TABLE */}
       <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[2.5rem] overflow-hidden backdrop-blur-md">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1100px]">
+          <table className="w-full text-left border-collapse min-w-275">
             <thead>
               <tr className="border-b border-zinc-800/50 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 bg-zinc-900/40">
                 <th className="px-8 py-6">Organization</th>
@@ -110,7 +110,7 @@ export default function OrganizationsPage() {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     key={org.id} 
-                    className="group hover:bg-white/[0.02] transition-colors"
+                    className="group hover:bg-white/2 transition-colors"
                   >
                     {/* Organization Column */}
                     <td className="px-8 py-5">

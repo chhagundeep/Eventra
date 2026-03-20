@@ -91,7 +91,7 @@ export default function ConfigPage() {
 
         {/* Content Area */}
         <div className="lg:col-span-9 space-y-6">
-          <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[2.5rem] p-10 backdrop-blur-xl min-h-[500px]">
+          <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[2.5rem] p-10 backdrop-blur-xl min-h-125">
             
             {/* PLATFORM ENGINE / GENERAL */}
             {activeTab === "general" && (
@@ -194,7 +194,7 @@ export default function ConfigPage() {
           </div>
 
           {/* Infrastructure Health Footer */}
-          <div className="bg-zinc-900/10 border border-zinc-800/50 rounded-[2rem] p-6 flex items-center justify-between">
+          <div className="bg-zinc-900/10 border border-zinc-800/50 rounded-4xl p-6 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className={`h-12 w-12 bg-black rounded-xl border border-zinc-800 flex items-center justify-center transition-colors ${latency > 20 ? 'text-orange-500' : 'text-emerald-500'}`}>
                 <Activity size={24} className={latency > 20 ? 'animate-pulse' : ''} />
@@ -271,7 +271,7 @@ function ConfigToggle({ title, desc, enabled, onToggle }: any) {
     <div className="p-6 bg-black/40 border border-zinc-800/50 rounded-2xl flex items-center justify-between hover:border-zinc-700 transition-all">
       <div className="space-y-1">
         <p className="text-[11px] font-black uppercase text-white tracking-wide italic">{title}</p>
-        <p className="text-[10px] text-zinc-600 font-medium leading-tight max-w-[200px]">{desc}</p>
+        <p className="text-[10px] text-zinc-600 font-medium leading-tight max-w-50">{desc}</p>
       </div>
       <button 
         onClick={onToggle}

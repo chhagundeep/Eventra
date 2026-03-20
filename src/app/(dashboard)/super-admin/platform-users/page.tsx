@@ -106,7 +106,7 @@ export default function PlatformUsers() {
                   <tr key={user.id} className="group hover:bg-zinc-800/20 transition-all duration-300">
                     <td className="px-10 py-7">
                       <div className="flex items-center gap-5">
-                        <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-zinc-800 to-zinc-900 border border-zinc-700/50 flex items-center justify-center font-black text-zinc-400 group-hover:border-orange-600/50 transition-colors">
+                        <div className="h-12 w-12 rounded-2xl bg-linear-to-br from-zinc-800 to-zinc-900 border border-zinc-700/50 flex items-center justify-center font-black text-zinc-400 group-hover:border-orange-600/50 transition-colors">
                           {user.name?.charAt(0) || "U"}
                         </div>
                         <div>
@@ -154,7 +154,7 @@ export default function PlatformUsers() {
 
 function StatCard({ icon, label, value, color }: any) {
   return (
-    <div className={`bg-zinc-900/40 border ${color} p-6 rounded-3xl min-w-[200px] hover:bg-zinc-900/60 transition-all group`}>
+    <div className={`bg-zinc-900/40 border ${color} p-6 rounded-3xl min-w-50 hover:bg-zinc-900/60 transition-all group`}>
       <div className="flex items-center gap-4 mb-3">
         <div className="p-2.5 bg-black rounded-xl text-zinc-500 group-hover:text-orange-600 transition-colors shadow-inner">
           {icon}

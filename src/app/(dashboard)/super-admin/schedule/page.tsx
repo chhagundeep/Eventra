@@ -45,7 +45,7 @@ export default function SuperAdminSchedule() {
       
       {/* --- CUSTOM UI TOAST NOTIFICATION --- */}
       {showToast && (
-        <div className="fixed top-8 right-8 z-[100] animate-in fade-in slide-in-from-right-8 duration-300">
+        <div className="fixed top-8 right-8 z-100 animate-in fade-in slide-in-from-right-8 duration-300">
           <div className="bg-zinc-900 border border-orange-600/50 p-4 rounded-2xl shadow-2xl shadow-orange-900/40 backdrop-blur-xl flex items-center gap-4 min-w-[320px]">
             <div className="bg-orange-600/20 p-2 rounded-full">
               <CheckCircle2 className="text-orange-500" size={20} />
@@ -129,7 +129,7 @@ export default function SuperAdminSchedule() {
                 const dayNum = i - 3; 
                 const isToday = dayNum === 23;
                 return (
-                  <div key={i} className={`min-h-[110px] rounded-2xl border transition-all p-3 group relative
+                  <div key={i} className={`min-h-27.5 rounded-2xl border transition-all p-3 group relative
                     ${dayNum > 0 && dayNum <= 31 ? 'bg-zinc-900/30 border-zinc-800/50 hover:border-orange-600/50' : 'opacity-0 pointer-events-none'}
                     ${isToday ? 'bg-orange-600/5 border-orange-600/50' : ''}
                   `}>
