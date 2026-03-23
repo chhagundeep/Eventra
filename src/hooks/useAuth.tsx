@@ -27,16 +27,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
+      setLoading(true); // Start loading whenever auth state changes
+      
       if (firebaseUser) {
-        const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-        if (userDoc.exists()) {
-          setRole(userDoc.data().role);
-          setTenantId(userDoc.data().tenantId);
+        setUser(firebaseUser);
+        try {
+          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setRole(userData.role || null);
+            setTenantId(userData.tenantId || null);
+          } else {
+            // Document missing in Firestore but exists in Auth
+            setRole(null);
+            setTenantId(null);
+          }
+        } catch (error) {
+          console.error("Error fetching user role:", error);
+          setRole(null);
+          setTenantId(null);
         }
+      } else {
+        // IMPORTANT: Reset everything on logout
+        setUser(null);
+        setRole(null);
+        setTenantId(null);
       }
+      
       setLoading(false);
     });
+
     return () => unsubscribe();
   }, []);
 

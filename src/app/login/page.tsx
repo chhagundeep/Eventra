@@ -113,14 +113,16 @@ export default function LoginPage() {
   <div className="relative">
     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-orange-600 transition-colors z-10" size={18} />
     
-    <input
-      type={showPassword ? "text" : "password"} // Switches between text and dots
-      required
-      value={password}
-      onChange={(e) => setPassword(e.target.value)}
-      className="w-full pl-12 pr-12 py-4 rounded-2xl bg-zinc-900/50 border border-zinc-800 text-white outline-none focus:ring-4 focus:ring-orange-600/10 focus:border-orange-600 transition-all"
-      placeholder="••••••••"
-    />
+    <input 
+  type="password" 
+  required 
+  value={password} 
+  // Ensure no regex or "replace" logic is cleaning this input
+  onChange={(e) => setPassword(e.target.value)}
+  className="w-full p-4 rounded-xl bg-black border border-zinc-800 text-white outline-none focus:border-orange-600"
+  placeholder="••••••••"
+  autoComplete="current-password" 
+/>
 
     {/* Custom Eye Icon that is ALWAYS visible and matches your theme */}
     <button

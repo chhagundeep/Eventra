@@ -4,8 +4,19 @@ import React, { useState, useEffect } from "react";
 import { X, Building2, Mail, Copy, Zap, ShieldCheck, Globe } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { initializeApp, getApps } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
+
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+};
 
 interface ModalProps {
   isOpen: boolean;
@@ -31,7 +42,16 @@ export default function RegisterTenantModal({ isOpen, onClose, editData }: Modal
   }, [editData, isOpen]);
 
   const generateSlug = (name: string) => name.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-');
-  const generatePassword = () => "EV-" + Math.random().toString(36).slice(-8).toUpperCase();
+  
+  // Alphanumeric only: No slashes, no hyphens
+  const generatePassword = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let result = "EV"; 
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,19 +73,45 @@ export default function RegisterTenantModal({ isOpen, onClose, editData }: Modal
         const tenantId = generateSlug(formData.orgName);
         const tempPassword = generatePassword();
 
+        // 1. Initialize Secondary Auth to avoid logging out current Super Admin
+        const secondaryApp = getApps().find(a => a.name === 'secondary') || initializeApp(firebaseConfig, 'secondary');
+        const secondaryAuth = getAuth(secondaryApp);
+        
+        // 2. Create actual User in Firebase Authentication
+        const userCredential = await createUserWithEmailAndPassword(
+          secondaryAuth, 
+          formData.adminEmail, 
+          tempPassword
+        );
+        const uid = userCredential.user.uid;
+
+        // 3. GLOBAL USER MAPPING (Visible password saved here for your reference)
+        await setDoc(doc(db, "users", uid), {
+          uid: uid,
+          email: formData.adminEmail,
+          password: tempPassword, // Saved as plain text in Firestore so you can see it
+          role: "admin",
+          tenantId: tenantId,
+          status: "active",
+          createdAt: serverTimestamp(),
+        });
+
+        // 4. TENANT ROOT DOCUMENT
         await setDoc(doc(db, "tenants", tenantId), {
+          id: tenantId,
           name: formData.orgName,
           adminEmail: formData.adminEmail,
-          tempPassword: tempPassword,
+          adminUid: uid,
+          password: tempPassword, // CRITICAL: Added this so the dashboard can read it
           plan: formData.plan,
           status: "active",
           createdAt: serverTimestamp(),
         });
 
-        const adminId = formData.adminEmail.replace(/[@.]/g, '_');
-        await setDoc(doc(db, "tenants", tenantId, "users", adminId), {
+        // 5. TENANT SUB-COLLECTION USER (linked by actual Auth UID)
+        await setDoc(doc(db, "tenants", tenantId, "users", uid), {
           email: formData.adminEmail,
-          password: tempPassword,
+          password: tempPassword, // Also saved here for tenant-specific lookups
           role: "admin",
           status: "active",
           joinedAt: serverTimestamp(),
@@ -74,9 +120,9 @@ export default function RegisterTenantModal({ isOpen, onClose, editData }: Modal
         setSuccessData({ email: formData.adminEmail, pass: tempPassword });
         toast.success("New tenant deployed successfully");
       }
-    } catch (error) {
-      console.error(error);
-      toast.error("Operation failed");
+    } catch (error: any) {
+      console.error("Deployment Error:", error);
+      toast.error(error.message || "Operation failed");
     } finally {
       setLoading(false);
     }
