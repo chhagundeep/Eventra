@@ -3,55 +3,74 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Building2, Search, Filter, ChevronRight, 
-  Trash2, AlertCircle, Loader2, Users, UserCog
+  Building2, Search, ChevronRight, 
+  Trash2, Fingerprint, ShieldCheck 
 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { 
-  collection, onSnapshot, query, orderBy, 
-  doc, deleteDoc, getDocs 
+  collection, onSnapshot, query, orderBy 
 } from "firebase/firestore";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import DeleteModal from "@/components/DeleteModal";
+
+interface Tenant {
+  id: string;
+  name: string;
+  adminUid: string;
+  adminEmail?: string;
+  password?: string; // This is the 'Secured Key'
+  status?: "active" | "inactive";
+  trainerCount?: number;
+  userCount?: number;
+  plan?: string;
+}
 
 export default function OrganizationsPage() {
-  const [tenants, setTenants] = useState<any[]>([]);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedOrg, setSelectedOrg] = useState<Tenant | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
-    // 1. Strict Filter: Only show docs that actually exist and have data
     const q = query(collection(db, "tenants"), orderBy("createdAt", "desc"));
-    
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const activeData = snapshot.docs
-        .filter(doc => doc.exists() && doc.data().name) 
-        .map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-      setTenants(activeData);
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Tenant)).filter(t => t.name);
+      setTenants(data);
     });
-
     return () => unsubscribe();
   }, []);
 
-  const handleDelete = async (orgId: string, orgName: string) => {
-    if (!confirm(`CAUTION: Decommissioning ${orgName} will wipe all sub-node data. Proceed?`)) return;
-    
-    setIsDeleting(orgId);
-    try {
-      // Clean sub-collections to prevent "Italicized Phantom Docs" in console
-      const usersRef = collection(db, "tenants", orgId, "users");
-      const usersSnap = await getDocs(usersRef);
-      await Promise.all(usersSnap.docs.map(uDoc => deleteDoc(uDoc.ref)));
+  const handleDeleteConfirm = async () => {
+    if (!selectedOrg) return;
+    setDeleteLoading(true);
+    const loadingId = toast.loading(`Purging ${selectedOrg.name}...`);
 
-      await deleteDoc(doc(db, "tenants", orgId));
-      toast.success(`${orgName} removed from fleet.`);
-    } catch (error) {
-      toast.error("Decommissioning failed.");
+    try {
+      const response = await fetch("/api/admin/delete-tenant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenantId: selectedOrg.id,
+          adminUid: selectedOrg.adminUid,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success(`${selectedOrg.name} decommissioned.`, { id: loadingId });
+        setIsDeleteModalOpen(false);
+      } else {
+        throw new Error(data.error || "Decommission failed");
+      }
+    } catch (error: any) {
+      toast.error(error.message, { id: loadingId });
     } finally {
-      setIsDeleting(null);
+      setDeleteLoading(false);
     }
   };
 
@@ -62,121 +81,92 @@ export default function OrganizationsPage() {
 
   return (
     <div className="space-y-8 pb-10">
-      {/* HEADER */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
           <h2 className="text-4xl font-black italic tracking-tighter uppercase text-white leading-none">
             Fleet <span className="text-orange-600">Inventory</span>
           </h2>
           <p className="text-zinc-500 font-bold text-[10px] uppercase tracking-[0.4em] mt-3">
-            Real-Time Node Management Suite
+            Identity Management & Node Control
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-orange-500 transition-colors" size={18} />
-            <input 
-              type="text"
-              placeholder="Search nodes..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-zinc-900/50 border border-zinc-800 rounded-2xl py-3.5 pl-12 pr-6 text-sm text-white focus:outline-none focus:border-orange-600/50 transition-all w-full md:w-72"
-            />
-          </div>
+        <div className="relative group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-orange-500 transition-colors" size={18} />
+          <input 
+            type="text"
+            placeholder="Filter network nodes..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="bg-zinc-900/50 border border-zinc-800 rounded-2xl py-3.5 pl-12 pr-6 text-sm text-white focus:outline-none focus:border-orange-600/50 transition-all w-full md:w-72"
+          />
         </div>
       </div>
 
-      {/* RESTORED DATA TABLE */}
       <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[2.5rem] overflow-hidden backdrop-blur-md">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-275">
+          <table className="w-full text-left border-collapse min-w-[1000px]">
             <thead>
               <tr className="border-b border-zinc-800/50 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 bg-zinc-900/40">
-                <th className="px-8 py-6">Organization</th>
-                <th className="px-6 py-6">Service Tier</th>
-                <th className="px-6 py-6 text-center">Trainers</th>
-                <th className="px-6 py-6 text-center">Users</th>
-                <th className="px-6 py-6">Deployment Status</th>
+                <th className="px-8 py-6">Organization & Admin Identity</th>
+                <th className="px-6 py-6">Security Hash</th>
+                <th className="px-6 py-6 text-center">Service Metrics</th>
+                <th className="px-6 py-6">Status</th>
                 <th className="px-8 py-6 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/30">
               <AnimatePresence mode="popLayout">
                 {filteredTenants.map((org) => (
-                  <motion.tr 
-                    layout
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    key={org.id} 
-                    className="group hover:bg-white/2 transition-colors"
-                  >
-                    {/* Organization Column */}
+                  <motion.tr layout key={org.id} className="group hover:bg-white/5 transition-colors">
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 bg-zinc-800 rounded-2xl flex items-center justify-center text-zinc-500 group-hover:text-orange-500 transition-all">
+                        <div className="h-12 w-12 rounded-2xl flex items-center justify-center bg-zinc-800 text-zinc-500 group-hover:text-orange-500 transition-all">
                           <Building2 size={22} />
                         </div>
                         <div>
-                          <p className="font-bold text-white text-base tracking-tight">{org.name}</p>
-                          <p className="text-[10px] text-zinc-500 font-bold uppercase">{org.adminEmail}</p>
+                          <p className="font-bold text-base tracking-tight text-white">{org.name}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <ShieldCheck size={10} className="text-blue-500" />
+                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">{org.adminEmail}</p>
+                          </div>
                         </div>
                       </div>
                     </td>
 
-                    {/* Service Tier Column */}
                     <td className="px-6 py-5">
-                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${
-                        org.plan === 'Enterprise' 
-                          ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' 
-                          : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
-                      }`}>
-                        {org.plan || 'Pro'} Tier
-                      </span>
-                    </td>
-
-                    {/* Trainers Count */}
-                    <td className="px-6 py-5 text-center">
-                       <span className="text-zinc-400 font-bold text-sm">
-                         {org.trainerCount || 0}
-                       </span>
-                    </td>
-
-                    {/* Users Count */}
-                    <td className="px-6 py-5 text-center">
-                       <span className="text-zinc-400 font-bold text-sm">
-                         {org.userCount || 0}
-                       </span>
-                    </td>
-
-                    {/* Deployment Status */}
-                    <td className="px-6 py-5">
-                      <div className="flex items-center gap-2">
-                        <div className={`h-1.5 w-1.5 rounded-full shadow-[0_0_8px] animate-pulse ${
-                          org.status === 'active' ? 'bg-emerald-500 shadow-emerald-500/50' : 'bg-zinc-600 shadow-zinc-600/50'
-                        }`} />
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${
-                          org.status === 'active' ? 'text-emerald-500' : 'text-zinc-500'
-                        }`}>
-                          {org.status === 'active' ? 'Active' : 'Offline'}
-                        </span>
+                      <div className="group/pass relative inline-flex items-center gap-2 px-3 py-1.5 bg-zinc-900/80 border border-zinc-800 rounded-lg cursor-help">
+                        <Fingerprint size={14} className="text-orange-600" />
+                        <span className="text-[11px] font-mono text-zinc-500 group-hover/pass:hidden">••••••••</span>
+                        <span className="text-[11px] font-mono text-orange-500 hidden group-hover/pass:block">{org.password}</span>
                       </div>
                     </td>
 
-                    {/* Actions */}
+                    <td className="px-6 py-5">
+                      <div className="flex items-center justify-center gap-6">
+                        <div className="text-center">
+                          <p className="text-[10px] font-black text-zinc-600 uppercase">Trainers</p>
+                          <p className="text-sm font-bold text-zinc-400">{org.trainerCount || 0}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[10px] font-black text-zinc-600 uppercase">Users</p>
+                          <p className="text-sm font-bold text-zinc-400">{org.userCount || 0}</p>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Node Active</span>
+                      </div>
+                    </td>
+
                     <td className="px-8 py-5 text-right flex items-center justify-end gap-3">
-                      <button 
-                        onClick={() => handleDelete(org.id, org.name)}
-                        disabled={isDeleting === org.id}
-                        className="p-2 text-zinc-700 hover:text-red-500 transition-colors"
-                      >
-                        {isDeleting === org.id ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
+                      <button onClick={() => { setSelectedOrg(org); setIsDeleteModalOpen(true); }} className="p-2 text-zinc-700 hover:text-red-500 transition-colors">
+                        <Trash2 size={18} />
                       </button>
-                      <Link 
-                        href={`/super-admin/organizations/${org.id}`}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-800/50 hover:bg-orange-600 text-white rounded-xl text-[10px] font-black uppercase transition-all"
-                      >
+                      <Link href={`/super-admin/organizations/${org.id}`} className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-orange-600 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-black/20">
                         Deep Dive <ChevronRight size={14} />
                       </Link>
                     </td>
@@ -187,6 +177,14 @@ export default function OrganizationsPage() {
           </table>
         </div>
       </div>
+
+      <DeleteModal 
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        orgName={selectedOrg?.name || "this organization"}
+        loading={deleteLoading}
+      />
     </div>
   );
 }

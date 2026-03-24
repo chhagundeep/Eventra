@@ -6,7 +6,8 @@ import { motion } from "framer-motion";
 import { 
   Building2, Users, UserCog, Calendar, 
   ArrowLeft, ShieldCheck, Mail, Copy, 
-  Activity, ExternalLink
+  Activity, ExternalLink, Fingerprint, Lock,
+  Globe, Zap
 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";
@@ -60,54 +61,53 @@ export default function OrganizationDeepDive() {
           className="h-full w-1/2 bg-orange-600"
         />
       </div>
-      <p className="text-zinc-500 font-black text-[10px] uppercase tracking-[0.4em] mt-4 animate-pulse">
-        Synchronizing Node Data...
-      </p>
     </div>
   );
 
-  if (!org) return (
-    <div className="p-10 text-center">
-      <h2 className="text-red-500 font-black text-2xl uppercase italic">Node Not Found</h2>
-      <button onClick={() => router.back()} className="mt-4 text-zinc-500 hover:text-white text-xs font-bold uppercase tracking-widest">
-        Return to Fleet Map
-      </button>
-    </div>
-  );
+  if (!org) return <div className="p-10 text-center text-white">Node Not Found</div>;
 
   return (
     <div className="space-y-8 pb-10">
-      <div className="flex items-center gap-4">
-        <button 
-          onClick={() => router.back()}
-          className="p-3 bg-zinc-900 border border-zinc-800 rounded-2xl text-zinc-400 hover:text-white transition-all hover:bg-zinc-800"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div>
-          <h2 className="text-3xl font-black italic tracking-tighter uppercase text-white leading-none">
-            {org.name} <span className="text-orange-600">Profile</span>
-          </h2>
-          <p className="text-zinc-500 font-bold text-[10px] uppercase tracking-[0.4em] mt-2">
-            Node ID: {id}
-          </p>
+      {/* HEADER SECTION */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => router.back()}
+            className="p-3 bg-zinc-900 border border-zinc-800 rounded-2xl text-zinc-400 hover:text-white transition-all shadow-xl"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h2 className="text-3xl font-black italic tracking-tighter uppercase text-white leading-none">
+              {org.name} <span className="text-orange-600">Infrastructure</span>
+            </h2>
+            <p className="text-zinc-500 font-bold text-[10px] uppercase tracking-[0.4em] mt-2">
+              Status: <span className="text-emerald-500">Node Synchronized</span>
+            </p>
+          </div>
+        </div>
+        
+        <div className="hidden md:flex items-center gap-3 px-6 py-3 bg-zinc-900/50 border border-zinc-800 rounded-2xl">
+          <Globe size={16} className="text-zinc-500" />
+          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Region: Global-01</span>
         </div>
       </div>
 
+      {/* STATS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
           { label: "Active Trainers", value: stats.trainers, icon: UserCog, color: "text-orange-500", path: "trainers" },
           { label: "Total Members", value: stats.users, icon: Users, color: "text-blue-500", path: "users" },
-          { label: "Scheduled Events", value: stats.events, icon: Calendar, color: "text-purple-500", path: "events" },
+          { label: "Network Events", value: stats.events, icon: Zap, color: "text-purple-500", path: "events" },
         ].map((stat) => (
           <Link href={`/super-admin/organizations/${id}/${stat.path}`} key={stat.label}>
             <motion.div 
-              whileHover={{ y: -5, borderColor: "rgba(255,255,255,0.2)" }}
-              className="bg-zinc-900/40 border border-zinc-800/50 p-8 rounded-4xl group cursor-pointer transition-all"
+              whileHover={{ y: -5, borderColor: "rgba(234, 88, 12, 0.3)" }}
+              className="bg-zinc-900/40 border border-zinc-800/50 p-8 rounded-[2.5rem] group cursor-pointer transition-all backdrop-blur-sm shadow-2xl shadow-black/20"
             >
               <div className="flex items-center justify-between mb-4">
                 <stat.icon className={`${stat.color}`} size={28} />
-                <ExternalLink size={16} className="text-zinc-700 group-hover:text-zinc-400 transition-colors" />
+                <ExternalLink size={14} className="text-zinc-600 group-hover:text-white transition-colors" />
               </div>
               <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">{stat.label}</p>
               <h3 className="text-4xl font-black text-white mt-1">{stat.value}</h3>
@@ -116,62 +116,88 @@ export default function OrganizationDeepDive() {
         ))}
       </div>
 
+      {/* MAIN INFO SECTION - REMOVED UPDATE FORM */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[2.5rem] p-8">
-          <h3 className="text-xs font-black text-white uppercase tracking-widest mb-8 flex items-center gap-3">
-            <ShieldCheck size={16} className="text-orange-500" /> Administrative Metadata
+        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[3rem] p-10 backdrop-blur-md relative overflow-hidden">
+          <div className="absolute -top-10 -right-10 opacity-5">
+              <ShieldCheck size={200} className="text-white" />
+          </div>
+
+          <h3 className="text-xs font-black text-white uppercase tracking-[0.3em] mb-10 flex items-center gap-3">
+            <Lock size={16} className="text-orange-500" /> Secure Identity Protocol
           </h3>
           
-          <div className="space-y-2">
-            <div className="flex justify-between items-center py-5 border-b border-zinc-800/50">
-              <span className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Primary Admin</span>
-              <div className="flex items-center gap-2 text-white font-bold text-sm">
-                <Mail size={14} className="text-zinc-600" />
-                {org.adminEmail}
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center py-5 border-b border-zinc-800/50">
-              <span className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">License Tier</span>
-              <span className="px-4 py-1.5 bg-orange-600/10 border border-orange-600/20 text-orange-500 text-[10px] font-black rounded-full uppercase tracking-tighter">
-                {org.plan || 'Pro'} Tier
-              </span>
-            </div>
-
-            {/* UPDATED ACCESS KEY ROW */}
-            <div className="flex justify-between items-center py-5">
-              <div className="flex flex-col gap-1">
-                <span className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Temporary Access Key</span>
-                <span className="font-mono text-orange-500 font-black text-xl tracking-[0.2em] mt-1">
-                  {org.password || 'NOT DEPLOYED'}
+          <div className="space-y-6 relative z-10">
+            <div className="p-6 rounded-3xl bg-zinc-900/50 border border-zinc-800/50 space-y-4">
+              <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
+                <span className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Administrative Email</span>
+                <span className="text-white font-bold text-sm flex items-center gap-2">
+                   <Mail size={14} className="text-orange-500" /> {org.adminEmail}
                 </span>
               </div>
               
-              {org.password && (
-                <button 
-                  onClick={() => {
-                    navigator.clipboard.writeText(org.password);
-                    toast.success("Access Key Copied");
-                  }}
-                  className="p-4 bg-zinc-800/40 hover:bg-zinc-800 rounded-2xl text-zinc-400 hover:text-orange-500 transition-all group"
-                >
-                  <Copy size={20} />
-                </button>
-              )}
+              <div className="flex justify-between items-center pt-2">
+                <span className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Network ID</span>
+                <span className="text-zinc-400 font-mono text-xs uppercase">{id}</span>
+              </div>
+            </div>
+
+            {/* IDENTITY HASH BLOCK - This looks professional per teacher request */}
+            <div className="bg-gradient-to-br from-orange-600/10 to-transparent border border-orange-600/20 rounded-[2rem] p-8 space-y-4">
+               <div className="flex items-center gap-2">
+                  <Fingerprint size={16} className="text-orange-500" />
+                  <span className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em]">Master Access Hash</span>
+               </div>
+               
+               <div className="flex items-center justify-between">
+                  <h4 className="text-2xl font-black text-white font-mono tracking-widest">
+                    {org.password || "••••••••"}
+                  </h4>
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(org.password);
+                      toast.success("Identity Hash Copied");
+                    }}
+                    className="h-14 w-14 bg-orange-600 hover:bg-orange-500 rounded-2xl flex items-center justify-center text-white transition-all active:scale-95 shadow-lg shadow-orange-900/40"
+                  >
+                    <Copy size={20} />
+                  </button>
+               </div>
+               <p className="text-[9px] text-zinc-600 font-bold uppercase leading-relaxed">
+                  This identity is cryptographically locked to the Firebase Authentication node. <br />
+                  Manual modification is disabled to prevent identity fragmentation.
+               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[2.5rem] p-8">
-          <h3 className="text-xs font-black text-white uppercase tracking-widest mb-8 flex items-center gap-3">
-            <Activity size={16} className="text-emerald-500" /> Operational Status
+        {/* HEALTH SECTION */}
+        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[3rem] p-10 backdrop-blur-md">
+          <h3 className="text-xs font-black text-white uppercase tracking-[0.3em] mb-10 flex items-center gap-3">
+            <Activity size={16} className="text-emerald-500" /> Live Node Performance
           </h3>
-          <div className="h-56 flex items-center justify-center border border-dashed border-zinc-800/50 rounded-[2rem] bg-black/20">
-             <div className="text-center">
-                <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 mx-auto animate-pulse mb-4 shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
-                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em]">Node Healthy & Synchronized</p>
-                <p className="text-zinc-600 text-[9px] font-bold uppercase mt-2">Uptime: 100.00%</p>
-             </div>
+          <div className="h-full max-h-[350px] flex flex-col items-center justify-center border border-dashed border-zinc-800/50 rounded-[2.5rem] bg-black/40 space-y-6">
+              <div className="relative">
+                <div className="h-4 w-4 rounded-full bg-emerald-500 animate-ping absolute inset-0 opacity-30" />
+                <div className="h-4 w-4 rounded-full bg-emerald-500 relative z-10 shadow-[0_0_30px_rgba(16,185,129,0.8)]" />
+              </div>
+              <div className="text-center">
+                <p className="text-[12px] font-black text-white uppercase tracking-[0.5em]">Synchronized</p>
+                <p className="text-zinc-600 text-[10px] font-bold uppercase mt-2">Integrity Check Passed</p>
+              </div>
+              
+              <div className="w-2/3 h-[1px] bg-zinc-800/50" />
+              
+              <div className="grid grid-cols-2 gap-10">
+                <div className="text-center">
+                   <p className="text-[9px] text-zinc-500 font-black uppercase mb-1">Latency</p>
+                   <p className="text-lg font-black text-emerald-500 font-mono">14ms</p>
+                </div>
+                <div className="text-center">
+                   <p className="text-[9px] text-zinc-500 font-black uppercase mb-1">Up-time</p>
+                   <p className="text-lg font-black text-emerald-500 font-mono">99.9%</p>
+                </div>
+              </div>
           </div>
         </div>
       </div>

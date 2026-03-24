@@ -10,6 +10,7 @@ service cloud.firestore {
     }
 
     function userDoc() {
+      // Helper to fetch the current user document from the root collection
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
@@ -21,8 +22,9 @@ service cloud.firestore {
       return userDoc().data.tenantId;
     }
 
+    // UPDATED: Fixed role check to use 'super-admin' (matching your app code)
     function isSuperAdmin() {
-      return isAuthenticated() && userRole() == "super_admin";
+      return isAuthenticated() && (userRole() == "super-admin" || userRole() == "super_admin");
     }
 
     function isAdmin() {
@@ -41,103 +43,84 @@ service cloud.firestore {
       return userTenant() == tenantId;
     }
 
-    /* -------- USERS -------- */
+    /* -------- COLLECTION GROUP MATCHES (CRITICAL FOR UI) -------- */
+    
+    match /{path=**}/admins/{adminId} {
+      allow read: if isSuperAdmin();
+    }
+
+    match /{path=**}/trainers/{trainerId} {
+      allow read: if isSuperAdmin();
+    }
+
+    match /{path=**}/users/{userId} {
+      // Matches both root users and tenant sub-collection users
+      allow read: if isSuperAdmin() || request.auth.uid == userId;
+      // CRITICAL: Allows Super Admin to perform the Batch Update on sub-collections
+      allow write: if isSuperAdmin();
+    }
+
+    /* -------- USERS (ROOT) -------- */
 
     match /users/{userId} {
-
       allow read: if request.auth.uid == userId || isSuperAdmin();
-
-      allow create: if request.auth.uid == userId;
-
+      allow create: if request.auth.uid == userId || isSuperAdmin();
       allow update: if request.auth.uid == userId || isSuperAdmin();
-
       allow delete: if isSuperAdmin();
     }
 
-    /* -------- TENANTS -------- */
+    /* -------- TENANTS (HIERARCHICAL) -------- */
 
     match /tenants/{tenantId} {
-
       allow create: if isSuperAdmin();
-
-      allow read: if isAuthenticated() &&
-        (isSuperAdmin() || belongsToTenant(tenantId));
-
+      allow read: if isAuthenticated() && (isSuperAdmin() || belongsToTenant(tenantId));
       allow update, delete: if isSuperAdmin();
 
-      /* -------- ADMINS -------- */
+      // Explicit match for the users sub-collection inside a tenant
+      match /users/{userId} {
+        allow read: if isAuthenticated() && (isSuperAdmin() || belongsToTenant(tenantId));
+        allow write: if isSuperAdmin();
+      }
 
+      /* -------- ADMINS (Legacy or specific role) -------- */
       match /admins/{adminId} {
-
-        allow read: if isAuthenticated() &&
-          (isSuperAdmin() || belongsToTenant(tenantId));
-
+        allow read: if isAuthenticated() && (isSuperAdmin() || belongsToTenant(tenantId));
         allow create, update, delete: if isSuperAdmin();
       }
 
       /* -------- TRAINERS -------- */
-
       match /trainers/{trainerId} {
-
-        allow read: if isAuthenticated() &&
-          (isSuperAdmin() || belongsToTenant(tenantId));
-
-        allow create, update, delete: if
-          isAdmin() && belongsToTenant(tenantId);
+        allow read: if isAuthenticated() && (isSuperAdmin() || belongsToTenant(tenantId));
+        allow create, update, delete: if (isAdmin() || isSuperAdmin()) && belongsToTenant(tenantId);
       }
 
       /* -------- EVENTS -------- */
-
       match /events/{eventId} {
-
         allow read: if true;
-
-        allow create: if
-          (isAdmin() || isTrainer()) &&
-          belongsToTenant(tenantId);
-
-        allow update, delete: if
-          isAdmin() &&
-          belongsToTenant(tenantId);
+        allow create: if (isAdmin() || isTrainer() || isSuperAdmin()) && belongsToTenant(tenantId);
+        allow update, delete: if (isAdmin() || isSuperAdmin()) && belongsToTenant(tenantId);
 
         /* -------- SLOTS -------- */
-
         match /slots/{slotId} {
-
           allow read: if true;
-
-          allow create, update, delete: if
-            (isAdmin() || isTrainer()) &&
-            belongsToTenant(tenantId);
+          allow create, update, delete: if (isAdmin() || isTrainer() || isSuperAdmin()) && belongsToTenant(tenantId);
         }
       }
 
       /* -------- BOOKINGS -------- */
-
       match /bookings/{bookingId} {
-
-        allow create: if
-          isUser() &&
-          belongsToTenant(tenantId);
-
-        allow read: if
-          request.auth.uid == resource.data.userId ||
-          ((isAdmin() || isTrainer() || isSuperAdmin()) &&
-          belongsToTenant(tenantId));
-
-        allow update, delete: if
-          isAdmin() || isSuperAdmin();
+        allow create: if isUser() && belongsToTenant(tenantId);
+        allow read: if request.auth.uid == resource.data.userId ||
+          ((isAdmin() || isTrainer() || isSuperAdmin()) && belongsToTenant(tenantId));
+        allow update, delete: if isAdmin() || isSuperAdmin();
       }
     }
 
     /* -------- PUBLIC EVENTS -------- */
 
     match /publicEvents/{eventId} {
-
       allow read: if true;
-
-      allow write: if
-        isAdmin() || isSuperAdmin();
+      allow write: if isAdmin() || isSuperAdmin();
     }
   }
 }
