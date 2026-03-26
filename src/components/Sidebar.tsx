@@ -20,7 +20,7 @@ const ROLE_MENUS = {
   ],
   "admin": [
     { name: "Dashboard", icon: LayoutDashboard, path: "/admin" },
-    { name: "Staff Management", icon: GraduationCap, path: "/admin/trainers" },
+    { name: "Trainer Management", icon: GraduationCap, path: "/admin/trainers" },
     { name: "Organization Users", icon: Users, path: "/admin/users" },
     { name: "Events Manager", icon: Calendar, path: "/admin/events" },
   ],

@@ -152,9 +152,14 @@ export default function OrganizationDeepDive() {
               </div>
               
               <div className="flex justify-between items-center pt-2">
-                <span className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Network ID</span>
-                <span className="text-zinc-400 font-mono text-xs uppercase">{id}</span>
-              </div>
+  <span className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">
+    Network ID
+  </span>
+  {/* Removed 'uppercase' to preserve the original Node ID casing */}
+  <span className="text-zinc-400 font-mono text-xs">
+    {id}
+  </span>
+</div>
             </div>
 
             <div className="bg-gradient-to-br from-orange-600/10 to-transparent border border-orange-600/20 rounded-[2rem] p-8 space-y-4">
