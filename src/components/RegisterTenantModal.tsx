@@ -6,7 +6,8 @@ import { db } from "@/lib/firebase";
 import { 
   doc, 
   serverTimestamp, 
-  writeBatch 
+  writeBatch,
+  collection // Added collection for ID generation
 } from "firebase/firestore";
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
@@ -32,8 +33,6 @@ export default function RegisterTenantModal({ isOpen, onClose }: ModalProps) {
   const [successData, setSuccessData] = useState<{ email: string, pass: string } | null>(null);
   const [formData, setFormData] = useState({ orgName: "", adminEmail: "", plan: "Pro" });
 
-  const generateSlug = (name: string) => name.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-');
-  
   const generatePassword = () => {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let result = "EV"; 
@@ -50,7 +49,13 @@ export default function RegisterTenantModal({ isOpen, onClose }: ModalProps) {
 
     try {
       const batch = writeBatch(db);
-      const tenantId = generateSlug(formData.orgName);
+      
+      /** * TEACHER'S REQUIREMENT: 
+       * Instead of using a name-based slug, we generate a unique Firebase ID.
+       */
+      const tenantRootRef = doc(collection(db, "tenants")); 
+      const tenantId = tenantRootRef.id; // Unique string like 'k8JzLp2...'
+      
       const tempPassword = generatePassword();
 
       // Firebase Secondary Instance for Auth Creation
@@ -72,13 +77,12 @@ export default function RegisterTenantModal({ isOpen, onClose }: ModalProps) {
         password: tempPassword,
         role: "admin",
         tenantId: tenantId,
-        tenantName: formData.orgName,
+        tenantName: formData.orgName, // Saved as metadata for easy display
         status: "active",
         createdAt: serverTimestamp(),
       });
 
       // 2. Tenant Root Node
-      const tenantRootRef = doc(db, "tenants", tenantId);
       batch.set(tenantRootRef, {
         id: tenantId,
         name: formData.orgName,

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Building2, Globe, ShieldCheck, Activity, 
-  Plus, Key, Trash2, Eye, ExternalLink 
+  Plus, Key, Trash2, ExternalLink 
 } from "lucide-react";
 import { db, auth } from "@/lib/firebase"; 
 import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from "firebase/firestore";
@@ -23,7 +23,7 @@ export default function SuperAdminDashboard() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [tenantToDelete, setTenantToDelete] = useState<{ id: string, name: string } | null>(null);
 
-  // AUTH GUARD
+  // AUTH GUARD: Ensure only logged in users see the dashboard
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (!user) {
@@ -33,14 +33,15 @@ export default function SuperAdminDashboard() {
     return () => unsubscribeAuth();
   }, [router]);
 
-  // DATA LISTENER
+  // DATA LISTENER: Real-time sync with "tenants" collection
   useEffect(() => {
     const q = query(collection(db, "tenants"), orderBy("createdAt", "desc"));
     
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
         const tenantData = snapshot.docs.map(doc => ({
-          id: doc.id,
+          // IMPORTANT: doc.id is now the unique Firebase Auto-ID
+          id: doc.id, 
           ...doc.data()
         }));
         setTenants(tenantData);
@@ -48,6 +49,7 @@ export default function SuperAdminDashboard() {
       (error) => {
         if (error.code !== "permission-denied") {
           console.error("Firestore error:", error);
+          toast.error("Network Topology Sync Failed");
         }
       }
     );
@@ -55,6 +57,7 @@ export default function SuperAdminDashboard() {
     return () => unsubscribe();
   }, []);
 
+  // DELETE HANDLER: Uses the unique ID to decommission the node
   const confirmDelete = async () => {
     if (!tenantToDelete) return;
     try {
@@ -63,6 +66,7 @@ export default function SuperAdminDashboard() {
       setIsDeleteModalOpen(false);
       setTenantToDelete(null);
     } catch (error) {
+      console.error("Deletion Error:", error);
       toast.error("Protocol Failure: Deletion Denied");
     }
   };
@@ -152,6 +156,7 @@ export default function SuperAdminDashboard() {
                 </div>
 
                 <div className="flex items-center justify-between md:justify-end gap-4">
+                  {/* Access Token Display */}
                   <div className="flex items-center gap-3 px-5 py-2.5 bg-black/40 rounded-2xl border border-zinc-800/50 group-hover:border-orange-600/20 transition-all">
                     <Key size={14} className="text-orange-600" />
                     <span className="font-mono text-[11px] text-orange-500 font-black tracking-[0.2em]">
@@ -160,7 +165,7 @@ export default function SuperAdminDashboard() {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    {/* View Details Button - Links to Deep Dive */}
+                    {/* View Details Button - Uses t.id which is now the unique Firebase ID */}
                     <Link 
                       href={`/super-admin/organizations/${t.id}`}
                       className="h-12 w-12 flex items-center justify-center bg-zinc-800 text-zinc-400 hover:bg-orange-600 hover:text-white rounded-xl transition-all"
@@ -170,7 +175,7 @@ export default function SuperAdminDashboard() {
 
                     {/* Delete Button */}
                     <button 
-                      onClick={() => { setTenantToDelete({ id: t.id, name: t.name }); setIsDeleteModalOpen(true); }} 
+                      onClick={() => { setTenantToDelete({ id: t.id, name: t.name }); setIsDeleteModalOpen(false); setIsDeleteModalOpen(true); }} 
                       className="h-12 w-12 flex items-center justify-center bg-zinc-800 text-zinc-600 hover:bg-red-600 hover:text-white rounded-xl transition-all"
                     >
                       <Trash2 size={18} />

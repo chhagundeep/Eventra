@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { 
-  Building2, Users, UserCog, Calendar, 
+  Building2, Users, UserCog, 
   ArrowLeft, ShieldCheck, Mail, Copy, 
   Activity, ExternalLink, Fingerprint, Lock,
   Globe, Zap
@@ -15,8 +15,10 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 
 export default function OrganizationDeepDive() {
-  const { id } = useParams();
+  const params = useParams();
+  const id = params.id as string; // Ensure id is treated as a string
   const router = useRouter();
+  
   const [org, setOrg] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ trainers: 0, users: 0, events: 0 });
@@ -24,27 +26,38 @@ export default function OrganizationDeepDive() {
   useEffect(() => {
     if (!id) return;
 
-    const unsubscribe = onSnapshot(doc(db, "tenants", id as string), (docSnap) => {
+    // Listen to the specific organization document using the Unique ID
+    const unsubscribe = onSnapshot(doc(db, "tenants", id), (docSnap) => {
       if (docSnap.exists()) {
         setOrg({ id: docSnap.id, ...docSnap.data() });
+      } else {
+        toast.error("Node not found in registry");
       }
+      setLoading(false);
+    }, (error) => {
+      console.error("Snapshot error:", error);
       setLoading(false);
     });
 
+    // Fetch associated counts based on the tenantId (the unique ID)
     const fetchCounts = async () => {
-      const trainersQ = query(collection(db, "users"), where("tenantId", "==", id), where("role", "==", "trainer"));
-      const usersQ = query(collection(db, "users"), where("tenantId", "==", id), where("role", "==", "user"));
-      
-      const [trainersSnap, usersSnap] = await Promise.all([
-        getDocs(trainersQ),
-        getDocs(usersQ)
-      ]);
+      try {
+        const trainersQ = query(collection(db, "users"), where("tenantId", "==", id), where("role", "==", "trainer"));
+        const usersQ = query(collection(db, "users"), where("tenantId", "==", id), where("role", "==", "user"));
+        
+        const [trainersSnap, usersSnap] = await Promise.all([
+          getDocs(trainersQ),
+          getDocs(usersQ)
+        ]);
 
-      setStats({
-        trainers: trainersSnap.size,
-        users: usersSnap.size,
-        events: 0 
-      });
+        setStats({
+          trainers: trainersSnap.size,
+          users: usersSnap.size,
+          events: 0 // Placeholder for future Eventra features
+        });
+      } catch (err) {
+        console.error("Stats fetch error:", err);
+      }
     };
 
     fetchCounts();
@@ -64,7 +77,13 @@ export default function OrganizationDeepDive() {
     </div>
   );
 
-  if (!org) return <div className="p-10 text-center text-white">Node Not Found</div>;
+  if (!org) return (
+    <div className="p-10 text-center text-white">
+      <p className="text-zinc-500 font-black uppercase tracking-widest mb-4">Error 404</p>
+      <h2 className="text-2xl font-bold">Node Not Found</h2>
+      <button onClick={() => router.back()} className="mt-6 text-orange-600 uppercase font-black text-xs">Return to Fleet</button>
+    </div>
+  );
 
   return (
     <div className="space-y-8 pb-10">
@@ -116,13 +135,9 @@ export default function OrganizationDeepDive() {
         ))}
       </div>
 
-      {/* MAIN INFO SECTION - REMOVED UPDATE FORM */}
+      {/* SECURE INFO & HEALTH */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[3rem] p-10 backdrop-blur-md relative overflow-hidden">
-          <div className="absolute -top-10 -right-10 opacity-5">
-              <ShieldCheck size={200} className="text-white" />
-          </div>
-
           <h3 className="text-xs font-black text-white uppercase tracking-[0.3em] mb-10 flex items-center gap-3">
             <Lock size={16} className="text-orange-500" /> Secure Identity Protocol
           </h3>
@@ -142,7 +157,6 @@ export default function OrganizationDeepDive() {
               </div>
             </div>
 
-            {/* IDENTITY HASH BLOCK - This looks professional per teacher request */}
             <div className="bg-gradient-to-br from-orange-600/10 to-transparent border border-orange-600/20 rounded-[2rem] p-8 space-y-4">
                <div className="flex items-center gap-2">
                   <Fingerprint size={16} className="text-orange-500" />
@@ -164,14 +178,13 @@ export default function OrganizationDeepDive() {
                   </button>
                </div>
                <p className="text-[9px] text-zinc-600 font-bold uppercase leading-relaxed">
-                  This identity is cryptographically locked to the Firebase Authentication node. <br />
-                  Manual modification is disabled to prevent identity fragmentation.
+                  This identity is cryptographically locked. Manual modification is disabled.
                </p>
             </div>
           </div>
         </div>
 
-        {/* HEALTH SECTION */}
+        {/* PERFORMANCE SECTION */}
         <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[3rem] p-10 backdrop-blur-md">
           <h3 className="text-xs font-black text-white uppercase tracking-[0.3em] mb-10 flex items-center gap-3">
             <Activity size={16} className="text-emerald-500" /> Live Node Performance
@@ -185,10 +198,7 @@ export default function OrganizationDeepDive() {
                 <p className="text-[12px] font-black text-white uppercase tracking-[0.5em]">Synchronized</p>
                 <p className="text-zinc-600 text-[10px] font-bold uppercase mt-2">Integrity Check Passed</p>
               </div>
-              
-              <div className="w-2/3 h-[1px] bg-zinc-800/50" />
-              
-              <div className="grid grid-cols-2 gap-10">
+              <div className="grid grid-cols-2 gap-10 mt-4">
                 <div className="text-center">
                    <p className="text-[9px] text-zinc-500 font-black uppercase mb-1">Latency</p>
                    <p className="text-lg font-black text-emerald-500 font-mono">14ms</p>

@@ -20,7 +20,7 @@ const ROLE_MENUS = {
   ],
   "admin": [
     { name: "Dashboard", icon: LayoutDashboard, path: "/admin" },
-    { name: "Staff Management", icon: GraduationCap, path: "/admin/staff" },
+    { name: "Staff Management", icon: GraduationCap, path: "/admin/trainers" },
     { name: "Organization Users", icon: Users, path: "/admin/users" },
     { name: "Events Manager", icon: Calendar, path: "/admin/events" },
   ],
@@ -40,17 +40,14 @@ export default function Sidebar({ onClose, role = "super-admin" }: { onClose?: (
   const pathname = usePathname();
   const router = useRouter(); 
 
-  const menuItems = ROLE_MENUS[role];
+  // Guard: Ensure menuItems is never undefined if role is null/invalid
+  const activeRole = role || "super-admin";
+  const menuItems = ROLE_MENUS[activeRole] || ROLE_MENUS["super-admin"];
 
   const handleLogout = async () => {
     try {
-      // 1. Terminate the Firebase session
       await signOut(auth); 
-      
-      // 2. Redirect to landing and overwrite history stack
-      // This prevents the back-button from returning to the dashboard
       router.replace("/"); 
-      
       if (onClose) onClose();
     } catch (error) {
       console.error("Logout failed:", error);
@@ -59,7 +56,6 @@ export default function Sidebar({ onClose, role = "super-admin" }: { onClose?: (
 
   return (
     <div className="flex flex-col h-full bg-[#0a0a0a] border-r border-zinc-800/50">
-      {/* Branding */}
       <div className="p-8 flex items-center justify-between">
         <div className="flex items-center gap-3 px-2">
           <div className="h-9 w-9 bg-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-900/40">
@@ -76,7 +72,8 @@ export default function Sidebar({ onClose, role = "super-admin" }: { onClose?: (
 
       <div className="px-10 pb-4">
         <span className="text-[9px] font-black text-orange-600/60 uppercase tracking-[0.4em]">
-          {role.replace("-", " ")} Mode
+          {/* FIXED: Added a fallback string 'Guest' in case role is null */}
+          {(role || "Guest").replace("-", " ")} Mode
         </span>
       </div>
 
@@ -121,7 +118,6 @@ export default function Sidebar({ onClose, role = "super-admin" }: { onClose?: (
         )}
       </nav>
 
-      {/* Logout Area */}
       <div className="p-6 border-t border-zinc-800/50">
         <button 
           onClick={handleLogout}

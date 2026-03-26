@@ -1,9 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Remove or comment out 'output: export'
-  // output: 'export', 
+  // Ensure 'output: export' is removed to allow dynamic features 
+  // and image optimization to work properly.
+  
   images: {
-    // You can keep this or set it to false if you use a provider like Vercel
+    // Allows Next.js to serve images from your Cloudinary account
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+        pathname: '/dfxae9jrx/**', // Your specific cloud_name
+      },
+    ],
+    // If you are deploying to Vercel, you can set this to false 
+    // to use their built-in image optimization.
     unoptimized: true, 
   },
 };

@@ -15,11 +15,11 @@ import toast from "react-hot-toast";
 import DeleteModal from "@/components/DeleteModal";
 
 interface Tenant {
-  id: string;
+  id: string; // This is the unique Firestore Document ID
   name: string;
   adminUid: string;
   adminEmail?: string;
-  password?: string; // This is the 'Secured Key'
+  password?: string;
   status?: "active" | "inactive";
   trainerCount?: number;
   userCount?: number;
@@ -33,18 +33,22 @@ export default function OrganizationsPage() {
   const [selectedOrg, setSelectedOrg] = useState<Tenant | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // REAL-TIME DATA FETCHING
   useEffect(() => {
     const q = query(collection(db, "tenants"), orderBy("createdAt", "desc"));
+    
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
-        id: doc.id,
+        id: doc.id, // Explicitly mapping the unique ID string
         ...doc.data()
-      } as Tenant)).filter(t => t.name);
+      } as Tenant)).filter(t => t.name); // Filter out any corrupt or empty entries
       setTenants(data);
     });
+
     return () => unsubscribe();
   }, []);
 
+  // DELETION HANDLER (Via API Route for complete cleanup)
   const handleDeleteConfirm = async () => {
     if (!selectedOrg) return;
     setDeleteLoading(true);
@@ -64,8 +68,9 @@ export default function OrganizationsPage() {
       if (data.success) {
         toast.success(`${selectedOrg.name} decommissioned.`, { id: loadingId });
         setIsDeleteModalOpen(false);
+        setSelectedOrg(null);
       } else {
-        throw new Error(data.error || "Decommission failed");
+        throw new Error(data.error || "Decommission protocol failed");
       }
     } catch (error: any) {
       toast.error(error.message, { id: loadingId });
@@ -81,6 +86,7 @@ export default function OrganizationsPage() {
 
   return (
     <div className="space-y-8 pb-10">
+      {/* HEADER & FILTER */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
           <h2 className="text-4xl font-black italic tracking-tighter uppercase text-white leading-none">
@@ -103,6 +109,7 @@ export default function OrganizationsPage() {
         </div>
       </div>
 
+      {/* INVENTORY TABLE */}
       <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[2.5rem] overflow-hidden backdrop-blur-md">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[1000px]">
@@ -118,7 +125,14 @@ export default function OrganizationsPage() {
             <tbody className="divide-y divide-zinc-800/30">
               <AnimatePresence mode="popLayout">
                 {filteredTenants.map((org) => (
-                  <motion.tr layout key={org.id} className="group hover:bg-white/5 transition-colors">
+                  <motion.tr 
+                    layout 
+                    initial={{ opacity: 0 }} 
+                    animate={{ opacity: 1 }} 
+                    exit={{ opacity: 0 }}
+                    key={org.id} 
+                    className="group hover:bg-white/5 transition-colors"
+                  >
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-4">
                         <div className="h-12 w-12 rounded-2xl flex items-center justify-center bg-zinc-800 text-zinc-500 group-hover:text-orange-500 transition-all">
@@ -163,10 +177,16 @@ export default function OrganizationsPage() {
                     </td>
 
                     <td className="px-8 py-5 text-right flex items-center justify-end gap-3">
-                      <button onClick={() => { setSelectedOrg(org); setIsDeleteModalOpen(true); }} className="p-2 text-zinc-700 hover:text-red-500 transition-colors">
+                      <button 
+                        onClick={() => { setSelectedOrg(org); setIsDeleteModalOpen(true); }} 
+                        className="p-2 text-zinc-700 hover:text-red-500 transition-colors"
+                      >
                         <Trash2 size={18} />
                       </button>
-                      <Link href={`/super-admin/organizations/${org.id}`} className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-orange-600 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-black/20">
+                      <Link 
+                        href={`/super-admin/organizations/${org.id}`} 
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-orange-600 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-black/20"
+                      >
                         Deep Dive <ChevronRight size={14} />
                       </Link>
                     </td>
@@ -180,7 +200,7 @@ export default function OrganizationsPage() {
 
       <DeleteModal 
         isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
+        onClose={() => { setIsDeleteModalOpen(false); setSelectedOrg(null); }}
         onConfirm={handleDeleteConfirm}
         orgName={selectedOrg?.name || "this organization"}
         loading={deleteLoading}
