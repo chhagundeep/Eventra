@@ -109,7 +109,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-12 pr-5 py-4 rounded-2xl bg-zinc-900/50 border border-zinc-800 text-white outline-none focus:ring-4 focus:ring-orange-600/10 focus:border-orange-600 transition-all"
-                  placeholder="admin@eventra.com"
+                  placeholder="*****@eventra.com"
                 />
               </div>
             </div>

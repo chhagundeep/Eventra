@@ -68,6 +68,16 @@ service cloud.firestore {
       allow update: if request.auth.uid == userId || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
+    /* -------- CATEGORIES (ROOT) -------- */
+    
+    match /categories/{categoryId} {
+      // Allow anyone to read categories (for the interest selection screen)
+      allow read: if true; 
+      
+      // Only Super Admins can seed or modify global categories
+      allow write: if isSuperAdmin();
+    }
+    
 
     /* -------- TENANTS (HIERARCHICAL) -------- */
 
