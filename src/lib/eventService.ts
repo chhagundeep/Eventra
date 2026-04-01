@@ -4,13 +4,17 @@ import {
   addDoc, 
   doc, 
   setDoc,
+  updateDoc,
   serverTimestamp 
 } from "firebase/firestore";
 import { EventraEvent } from "@/types";
 
+/**
+ * DEPLOY NEW EVENT
+ * Handles private tenant storage and public mobile app sync.
+ */
 export const createEvent = async (
   tenantId: string, 
-  // We use 'any' here or a specific Omit to ensure the new 'images' array is accepted
   eventData: any 
 ) => {
   try {
@@ -18,7 +22,6 @@ export const createEvent = async (
     const tenantEventsRef = collection(db, "tenants", tenantId, "events");
     
     // 2. Add document to the private sub-collection
-    // Using serverTimestamp() instead of Date.now() for Firestore consistency
     const newEventDoc = await addDoc(tenantEventsRef, {
       ...eventData,
       tenantId,
@@ -29,18 +32,13 @@ export const createEvent = async (
     const publicEventRef = doc(db, "publicEvents", newEventDoc.id);
     
     await setDoc(publicEventRef, {
+      ...eventData,
       eventId: newEventDoc.id,
       tenantId: tenantId,
-      title: eventData.title,
-      category: eventData.category,
-      date: eventData.date,
-      trainerId: eventData.trainerId,
-      // MOBILE APP COMPATIBILITY: 
-      // The app likely expects a string. We send the first image of the array.
+      // Mobile app primary image compatibility
       imageUrl: eventData.images && eventData.images.length > 0 
         ? eventData.images[0] 
         : "", 
-      // Also sync the full array for detail views
       images: eventData.images || [],
       status: eventData.status || "active",
       createdAt: serverTimestamp(),
@@ -49,6 +47,45 @@ export const createEvent = async (
     return newEventDoc.id;
   } catch (error) {
     console.error("Error in createEvent service:", error);
+    throw error;
+  }
+};
+
+/**
+ * UPDATE EXISTING EVENT
+ * Updates both the private tenant record and the public mobile sync.
+ */
+export const updateEvent = async (
+  tenantId: string,
+  eventId: string,
+  eventData: Partial<EventraEvent>
+) => {
+  try {
+    // 1. Update private tenant record
+    const eventRef = doc(db, "tenants", tenantId, "events", eventId);
+    await updateDoc(eventRef, {
+      ...eventData,
+      updatedAt: serverTimestamp(),
+    });
+
+    // 2. Sync changes to publicEvents for Mobile App
+    const publicEventRef = doc(db, "publicEvents", eventId);
+    
+    // We use setDoc with merge: true to avoid overwriting fields not included in eventData
+    await setDoc(publicEventRef, {
+      ...eventData,
+      eventId: eventId,
+      tenantId: tenantId,
+      // Update primary image if the images array was modified
+      imageUrl: eventData.images && eventData.images.length > 0 
+        ? eventData.images[0] 
+        : (eventData as any).imageUrl || "",
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+
+    return true;
+  } catch (error) {
+    console.error("Error in updateEvent service:", error);
     throw error;
   }
 };
