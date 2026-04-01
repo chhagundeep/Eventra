@@ -19,7 +19,7 @@ const uploadToCloudinary = async (file: File) => {
 
   if (!res.ok) throw new Error("Cloudinary Upload Failed");
   const data = await res.json();
-  return data.public_id;
+  return data.public_id; // Returning the public_id
 };
 
 interface EditTrainerDrawerProps {
@@ -44,15 +44,12 @@ export default function EditTrainerDrawer({ isOpen, trainer, onClose, onSuccess 
     phone: "",
   });
 
-  // 1. Fetch categories & Populate existing trainer data
   useEffect(() => {
     const initData = async () => {
       try {
-        // Fetch global categories
         const snap = await getDocs(collection(db, "categories"));
         setAvailableCategories(snap.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
 
-        // Pre-fill trainer info
         if (trainer) {
           setFormData({
             name: trainer.name || "",
@@ -60,7 +57,9 @@ export default function EditTrainerDrawer({ isOpen, trainer, onClose, onSuccess 
             phone: trainer.phone || "",
           });
           setSelectedCategories(trainer.categories || []);
-          // Note: Cloudinary URLs are handled by the getCloudinaryUrl helper in your main page
+          // Reset file states when opening a new trainer
+          setSelectedFile(null);
+          setImagePreview(null);
         }
       } catch (err) {
         console.error("Error initializing edit drawer:", err);
@@ -90,20 +89,34 @@ export default function EditTrainerDrawer({ isOpen, trainer, onClose, onSuccess 
     if (!tenantId || !trainer) return;
 
     setLoading(true);
+    const oldImgId = trainer.imgId; // Store the old ID to delete later
+
     try {
-      let finalImgId = trainer.imgId;
+      let finalImgId = oldImgId;
+
+      // 1. If a new file is selected, upload it
       if (selectedFile) {
         finalImgId = await uploadToCloudinary(selectedFile);
       }
 
+      // 2. Update Firestore
       const trainerDocRef = doc(db, "tenants", tenantId, "trainers", trainer.id);
-      
       await updateDoc(trainerDocRef, {
         ...formData,
         specialization: selectedCategories.join(", "),
         categories: selectedCategories,
         imgId: finalImgId,
       });
+
+      // 3. Clean up Cloudinary: If we uploaded a new image, delete the old one
+      if (selectedFile && oldImgId) {
+        console.log("Cleaning up old trainer image:", oldImgId);
+        await fetch("/api/admin/delete-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ publicIds: [oldImgId] }),
+        });
+      }
 
       onSuccess();
     } catch (error) {
@@ -134,10 +147,16 @@ export default function EditTrainerDrawer({ isOpen, trainer, onClose, onSuccess 
                   {imagePreview ? (
                     <img src={imagePreview} className="h-full w-full object-cover" alt="Preview" />
                   ) : (
-                    <div className="text-zinc-600 text-xs font-bold uppercase">Change Image</div>
+                    <div className="text-zinc-600 text-xs font-bold uppercase flex flex-col items-center gap-2">
+                        <Upload size={20} />
+                        <span>Change Image</span>
+                    </div>
                   )}
                   <input type="file" onChange={handleImageChange} className="absolute inset-0 opacity-0 cursor-pointer" />
                 </div>
+                {selectedFile && (
+                    <p className="text-[9px] text-orange-500 font-bold uppercase text-center">New image pending save</p>
+                )}
               </div>
 
               {/* Specialization Selection */}

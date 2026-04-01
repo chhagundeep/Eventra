@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Loader2, Upload, Trash2, ChevronDown } from "lucide-react";
+import { X, Loader2, Upload, Trash2 } from "lucide-react";
 import { CldUploadWidget } from "next-cloudinary";
 import { createEvent, updateEvent } from "@/lib/eventService";
 import { serverTimestamp } from "firebase/firestore";
@@ -12,7 +12,7 @@ interface CreateEventModalProps {
   onClose: () => void;
   tenantId: string;
   trainers: { id: string; name: string }[];
-  initialData?: EventraEvent | null; // Added for Edit Mode
+  initialData?: EventraEvent | null;
 }
 
 const CATEGORIES = [
@@ -22,6 +22,19 @@ const CATEGORIES = [
   { id: "arts-and-photography", label: "Arts & Photography" },
   { id: "fitness", label: "Fitness" },
 ];
+
+// --- HELPER: Extract Cloudinary Public ID from URL ---
+const extractIdFromUrl = (url: string) => {
+  try {
+    const parts = url.split('/upload/');
+    if (parts.length < 2) return null;
+    const pathWithExtension = parts[1].replace(/^v\d+\//, '');
+    return pathWithExtension.split('.')[0];
+  } catch (error) {
+    console.error("ID Extraction failed:", error);
+    return null;
+  }
+};
 
 export default function CreateEventModal({ 
   isOpen, 
@@ -58,7 +71,6 @@ export default function CreateEventModal({
         status: initialData.status || "active"
       });
     } else if (!isOpen) {
-      // Reset form on close to ensure next "Create" is fresh
       setFormData({ 
         title: "", description: "", date: "", 
         category: "workshop", capacity: 20, price: 0, 
@@ -91,7 +103,25 @@ export default function CreateEventModal({
 
     try {
       if (initialData?.id) {
-        // --- EDIT MODE ---
+        // --- EDIT MODE: IMAGE CLEANUP ---
+        const originalImages = initialData.images || [];
+        // Find images that were in the original set but are NOT in the current form
+        const imagesToRemove = originalImages.filter(url => !formData.images.includes(url));
+
+        if (imagesToRemove.length > 0) {
+          const publicIds = imagesToRemove
+            .map(url => extractIdFromUrl(url))
+            .filter(Boolean) as string[];
+
+          // Trigger Cloudinary deletion via your API
+          await fetch("/api/admin/delete-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ publicIds }),
+          });
+        }
+
+        // --- UPDATE FIRESTORE ---
         await updateEvent(tenantId, initialData.id, {
           ...formData,
         });

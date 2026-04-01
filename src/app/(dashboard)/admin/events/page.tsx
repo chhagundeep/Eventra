@@ -2,29 +2,35 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { 
-  Plus, 
-  Calendar, 
-  Loader2, 
-  Users, 
-  MoreHorizontal, 
-  Image as ImageIcon,
-  ChevronRight,
-  Trash2,
-  Edit3
+  Plus, Calendar, Loader2, Users, ChevronRight, Trash2, Edit3
 } from "lucide-react";
 import CreateEventModal from "@/components/modals/CreateEventModal";
-import DeleteConfirmModal from "@/components/modals/DeleteConfirmModal"; // New Import
+import DeleteConfirmModal from "@/components/modals/DeleteConfirmModal";
 import { db } from "@/lib/firebase";
 import { collection, query, getDocs, orderBy, deleteDoc, doc } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { EventraEvent } from "@/types";
 
+// --- REFINED ID EXTRACTION ---
+const extractIdFromUrl = (url: string) => {
+  try {
+    // Cloudinary URLs look like: .../upload/v12345/folder/image_id.jpg
+    const parts = url.split('/upload/');
+    if (parts.length < 2) return null;
+
+    // Remove the version (v12345/) and the file extension (.jpg)
+    const pathWithExtension = parts[1].replace(/^v\d+\//, '');
+    const publicId = pathWithExtension.split('.')[0];
+    
+    return publicId; // Returns "folder/image_id"
+  } catch (error) {
+    console.error("ID Extraction failed for URL:", url, error);
+    return null;
+  }
+};
+
 // --- SUB-COMPONENT: SLIDESHOW EVENT CARD ---
-function EventCard({ 
-  event, 
-  onEdit, 
-  onDelete 
-}: { 
+function EventCard({ event, onEdit, onDelete }: { 
   event: EventraEvent; 
   onEdit: (e: EventraEvent) => void; 
   onDelete: (id: string, title: string) => void; 
@@ -42,39 +48,31 @@ function EventCard({
 
   return (
     <div className="group relative bg-zinc-950 border border-zinc-800 rounded-[2.5rem] overflow-hidden transition-all duration-500 hover:border-orange-500/40 hover:shadow-2xl flex flex-col h-full">
-      
-      {/* VISUAL SECTION */}
       <div className="h-52 relative overflow-hidden bg-zinc-900">
-        {images.map((img, idx) => (
-          <img
-            key={idx}
-            src={img}
-            alt=""
-            className={`absolute inset-0 w-full h-full object-cover transition-all duration-1000 ${
-              idx === currentIdx ? "opacity-50 scale-100" : "opacity-0 scale-110"
-            }`}
-          />
-        ))}
+        {images.length > 0 ? (
+          images.map((img, idx) => (
+            <img
+              key={idx}
+              src={img}
+              alt=""
+              className={`absolute inset-0 w-full h-full object-cover transition-all duration-1000 ${
+                idx === currentIdx ? "opacity-50 scale-100" : "opacity-0 scale-110"
+              }`}
+            />
+          ))
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-zinc-700 text-[10px] font-black uppercase">No Media Payload</div>
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent" />
-        
         <div className="absolute top-5 left-6 z-20 flex items-center gap-2">
           <span className="px-3 py-1 bg-orange-600 text-[9px] font-black uppercase tracking-widest text-white rounded-lg">
             {event.category || "General"}
           </span>
-          <div className="flex items-center gap-1.5 px-2 py-1 bg-zinc-900/80 backdrop-blur-md border border-white/5 rounded-lg text-emerald-500">
-             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-             <span className="text-[8px] font-black uppercase tracking-tight">Active Node</span>
-          </div>
         </div>
       </div>
 
-      {/* CONTENT SECTION */}
       <div className="px-7 pb-8 -mt-10 relative z-10 space-y-4 bg-zinc-950 pt-2 flex-grow">
-        <h3 className="text-2xl font-black text-white uppercase tracking-tighter leading-none pt-2">
-          {event.title}
-        </h3>
-
-        {/* METADATA GRID */}
+        <h3 className="text-2xl font-black text-white uppercase tracking-tighter leading-none pt-2">{event.title}</h3>
         <div className="grid grid-cols-3 gap-2 py-4 border-y border-zinc-900">
           <div className="space-y-1">
             <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Scheduled</p>
@@ -89,26 +87,12 @@ function EventCard({
             <p className="text-[10px] font-black text-white">Rs.{event.price || 0}</p>
           </div>
         </div>
-
-        {/* ADDED DESCRIPTION LINE */}
-        <p className="text-zinc-500 text-xs italic font-medium line-clamp-2 leading-relaxed">
-          "{event.description || 'No description provided for this node.'}"
-        </p>
-
-        {/* ACTION BUTTONS */}
+        <p className="text-zinc-500 text-xs italic font-medium line-clamp-2 leading-relaxed">"{event.description}"</p>
         <div className="flex items-center gap-3 pt-2">
-          <button 
-            onClick={() => onEdit(event)}
-            className="flex-grow bg-white hover:bg-orange-600 text-black hover:text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all flex items-center justify-center gap-2 group/btn"
-          >
-            Manage Node
-            <ChevronRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
+          <button onClick={() => onEdit(event)} className="flex-grow bg-white hover:bg-orange-600 text-black hover:text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all flex items-center justify-center gap-2 group/btn">
+            Manage Node <ChevronRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
           </button>
-          
-          <button 
-            onClick={() => onDelete(event.id!, event.title)}
-            className="p-4 bg-zinc-900 text-zinc-600 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-colors border border-zinc-800"
-          >
+          <button onClick={() => onDelete(event.id!, event.title)} className="p-4 bg-zinc-900 text-zinc-600 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-colors border border-zinc-800">
             <Trash2 size={16} />
           </button>
         </div>
@@ -117,7 +101,7 @@ function EventCard({
   );
 }
 
-// --- MAIN PAGE COMPONENT ---
+// --- MAIN PAGE ---
 export default function EventsManagerPage() {
   const { tenantId } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -136,9 +120,7 @@ export default function EventsManagerPage() {
       const q = query(eventsRef, orderBy("createdAt", "desc"));
       const eventSnap = await getDocs(q);
       setEvents(eventSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as EventraEvent[]);
-    } catch (error) {
-      console.error("Error fetching events:", error);
-    }
+    } catch (error) { console.error(error); }
   }, [tenantId]);
 
   const fetchTrainers = useCallback(async () => {
@@ -147,9 +129,7 @@ export default function EventsManagerPage() {
       const trainersRef = collection(db, "tenants", tenantId, "trainers");
       const trainerSnap = await getDocs(trainersRef);
       setTrainers(trainerSnap.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
-    } catch (error) {
-      console.error("Error fetching trainers:", error);
-    }
+    } catch (error) { console.error(error); }
   }, [tenantId]);
 
   useEffect(() => {
@@ -162,11 +142,6 @@ export default function EventsManagerPage() {
     loadData();
   }, [tenantId, fetchEvents, fetchTrainers]);
 
-  const handleEdit = (event: EventraEvent) => {
-    setSelectedEvent(event);
-    setIsModalOpen(true);
-  };
-
   const handleDeleteRequest = (id: string, title: string) => {
     setEventToDelete({ id, title });
     setIsDeleteModalOpen(true);
@@ -175,13 +150,44 @@ export default function EventsManagerPage() {
   const handleConfirmDelete = async () => {
     if (!eventToDelete || !tenantId) return;
     setIsDeleting(true);
+
     try {
-      await deleteDoc(doc(db, "tenants", tenantId, "events", eventToDelete.id));
-      await deleteDoc(doc(db, "publicEvents", eventToDelete.id));
+      const targetEvent = events.find(e => e.id === eventToDelete.id);
+
+      // 1. Cloudinary Multi-Image Cleanup
+      if (targetEvent?.images && targetEvent.images.length > 0) {
+        // Extract all IDs from the image URL array
+        const publicIds = targetEvent.images
+          .map(url => extractIdFromUrl(url))
+          .filter(id => id !== null) as string[];
+
+        console.log("Cleaning up Cloudinary assets:", publicIds);
+
+        const cloudRes = await fetch("/api/admin/delete-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ publicIds }),
+        });
+        
+        const cloudData = await cloudRes.json();
+        console.log("Cloudinary Cleanup Result:", cloudData);
+      }
+
+      // 2. Firestore Deletion (Multi-collection)
+      const tenantEventRef = doc(db, "tenants", tenantId, "events", eventToDelete.id);
+      const publicEventRef = doc(db, "publicEvents", eventToDelete.id);
+
+      await Promise.all([
+        deleteDoc(tenantEventRef),
+        deleteDoc(publicEventRef)
+      ]);
+      
       setEvents(prev => prev.filter(e => e.id !== eventToDelete.id));
       setIsDeleteModalOpen(false);
+      console.log("Infrastructure Node purged successfully.");
     } catch (error) {
-      console.error("Delete failed:", error);
+      console.error("Critical: Deletion phase failed:", error);
+      alert("Purge failed. Check terminal.");
     } finally {
       setIsDeleting(false);
       setEventToDelete(null);
@@ -196,26 +202,22 @@ export default function EventsManagerPage() {
 
   return (
     <div className="max-w-[1600px] mx-auto p-6 lg:p-10 space-y-10 animate-in fade-in duration-700">
-      
       <div className="flex flex-col lg:flex-row justify-between items-end lg:items-center gap-6">
-        <div className="flex flex-wrap gap-4 w-full">
-          <div className="bg-zinc-900/50 border border-zinc-800 p-5 rounded-[2rem] flex items-center gap-5 min-w-[240px]">
-            <div className="w-14 h-14 bg-orange-600/10 rounded-2xl flex items-center justify-center text-orange-500 border border-orange-600/20">
-              <Calendar size={28} />
-            </div>
-            <div>
-              <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em]">Active Nodes</p>
-              <p className="text-3xl font-black text-white">{events.length}</p>
-            </div>
+        <div className="bg-zinc-900/50 border border-zinc-800 p-5 rounded-[2rem] flex items-center gap-5 min-w-[240px]">
+          <div className="w-14 h-14 bg-orange-600/10 rounded-2xl flex items-center justify-center text-orange-500 border border-orange-600/20">
+            <Calendar size={28} />
+          </div>
+          <div>
+            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em]">Active Nodes</p>
+            <p className="text-3xl font-black text-white">{events.length}</p>
           </div>
         </div>
 
         <button 
           onClick={() => { setSelectedEvent(null); setIsModalOpen(true); }}
-          className="bg-orange-600 hover:bg-orange-500 text-white px-10 py-5 rounded-full font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all active:scale-95 shadow-2xl shadow-orange-900/20"
+          className="bg-orange-600 hover:bg-orange-500 text-white px-10 py-5 rounded-full font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all active:scale-95"
         >
-          <Plus size={20} strokeWidth={3} /> 
-          Deploy Event
+          <Plus size={20} strokeWidth={3} /> Deploy Event
         </button>
       </div>
 
@@ -226,7 +228,7 @@ export default function EventsManagerPage() {
             <EventCard 
               key={event.id} 
               event={event} 
-              onEdit={handleEdit} 
+              onEdit={(e) => { setSelectedEvent(e); setIsModalOpen(true); }} 
               onDelete={handleDeleteRequest} 
             />
           ))}
@@ -235,10 +237,7 @@ export default function EventsManagerPage() {
 
       <CreateEventModal 
         isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          fetchEvents(); 
-        }}
+        onClose={() => { setIsModalOpen(false); fetchEvents(); }}
         tenantId={tenantId || ""}
         trainers={trainers}
         initialData={selectedEvent} 

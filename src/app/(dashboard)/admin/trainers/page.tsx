@@ -10,7 +10,7 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import AddTrainerDrawer from "@/components/modals/AddTrainerDrawer";
-import EditTrainerDrawer from "@/components/modals/EditTrainerDrawer"; // Import the new Edit Drawer
+import EditTrainerDrawer from "@/components/modals/EditTrainerDrawer";
 
 const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
 
@@ -18,21 +18,22 @@ const getCloudinaryUrl = (publicId: string) => {
   if (!publicId || publicId === "sample_avatar") {
     return "https://res.cloudinary.com/dfxae9jrx/image/upload/v1711464455/sample_avatar.png"; 
   }
-  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/c_fill,w_100,h_100,g_face/v1/${publicId}`;
+  // Added f_auto,q_auto for better performance
+  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/c_fill,w_100,h_100,g_face,f_auto,q_auto/v1/${publicId}`;
 };
 
 export default function TrainerManagementPage() {
   const { tenantId } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false); // State for Edit Drawer
+  const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
   const [trainers, setTrainers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // --- UI MODAL STATES ---
   const [viewingCredentials, setViewingCredentials] = useState<any | null>(null);
   const [deletingStaff, setDeletingStaff] = useState<any | null>(null);
-  const [editingStaff, setEditingStaff] = useState<any | null>(null); // State for trainer being edited
+  const [editingStaff, setEditingStaff] = useState<any | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -54,11 +55,37 @@ export default function TrainerManagementPage() {
 
   const confirmDelete = async () => {
     if (!tenantId || !deletingStaff) return;
+
     try {
+      // 1. Cloudinary Cleanup
+      if (deletingStaff.imgId && deletingStaff.imgId !== "sample_avatar") {
+        console.log("Attempting to delete Cloudinary asset:", deletingStaff.imgId);
+        
+        const cloudRes = await fetch("/api/admin/delete-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ publicIds: [deletingStaff.imgId] }),
+        });
+
+        const cloudData = await cloudRes.json();
+        
+        // Log the result to browser console for debugging
+        if (cloudData.success) {
+          console.log("Cloudinary cleanup successful:", cloudData.result);
+        } else {
+          console.warn("Cloudinary cleanup partially failed or image not found:", cloudData);
+        }
+      }
+
+      // 2. Firestore Deletion
       await deleteDoc(doc(db, "tenants", tenantId, "trainers", deletingStaff.id));
+      
+      // UI Cleanup
       setDeletingStaff(null);
+      console.log("Trainer record deleted from Firestore.");
     } catch (err) {
-      console.error("Delete failed:", err);
+      console.error("Critical error during deletion process:", err);
+      alert("Failed to delete trainer. Check console for details.");
     }
   };
 
@@ -75,8 +102,8 @@ export default function TrainerManagementPage() {
         <div>
           <h1 className="text-xl lg:text-2xl font-black text-white tracking-tight italic uppercase">Team Management</h1>
           <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">
-  Admin / Staff Node {tenantId && <span className="text-orange-600/50 ml-2 normal-case">ID: {tenantId}</span>}
-</p>
+            Admin / Staff Node {tenantId && <span className="text-orange-600/50 ml-2 normal-case">ID: {tenantId}</span>}
+          </p>
         </div>
         
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -127,7 +154,6 @@ export default function TrainerManagementPage() {
                   <td className="p-5 text-zinc-400 text-sm">{trainer.phone}</td>
                   <td className="p-5 text-right">
                     <div className="flex justify-end gap-2 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
-                      {/* EDIT BUTTON */}
                       <button 
                         onClick={() => {
                           setEditingStaff(trainer);
@@ -138,12 +164,10 @@ export default function TrainerManagementPage() {
                         <Edit3 size={16} />
                       </button>
 
-                      {/* KEY BUTTON */}
                       <button onClick={() => setViewingCredentials(trainer)} className="h-9 w-9 flex items-center justify-center bg-zinc-800 hover:bg-blue-600 text-white rounded-lg transition-colors">
                         <KeyRound size={16} />
                       </button>
 
-                      {/* DELETE BUTTON */}
                       <button onClick={() => setDeletingStaff(trainer)} className="h-9 w-9 flex items-center justify-center bg-zinc-800 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors">
                         <Trash2 size={16} />
                       </button>
@@ -158,7 +182,6 @@ export default function TrainerManagementPage() {
 
       {/* --- DRAWERS & MODALS --- */}
       <AnimatePresence>
-        {/* VIEW KEY MODAL */}
         {viewingCredentials && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
@@ -175,7 +198,6 @@ export default function TrainerManagementPage() {
           </div>
         )}
 
-        {/* DELETE CONFIRMATION MODAL */}
         {deletingStaff && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
@@ -191,14 +213,12 @@ export default function TrainerManagementPage() {
         )}
       </AnimatePresence>
 
-      {/* ADD MEMBER DRAWER */}
       <AddTrainerDrawer 
         isOpen={isDrawerOpen} 
         onClose={() => setIsDrawerOpen(false)} 
         onSuccess={() => setIsDrawerOpen(false)} 
       />
 
-      {/* EDIT MEMBER DRAWER */}
       <EditTrainerDrawer 
         isOpen={isEditDrawerOpen} 
         trainer={editingStaff} 
