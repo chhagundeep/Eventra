@@ -7,10 +7,13 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from "firebase/firestore";
+import { 
+  collection, onSnapshot, query, orderBy, doc, deleteDoc, getDocs, where 
+} from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import AddTrainerDrawer from "@/components/modals/AddTrainerDrawer";
 import EditTrainerDrawer from "@/components/modals/EditTrainerDrawer";
+import DeleteModal from "@/components/DeleteModal";
 
 const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
 
@@ -18,7 +21,6 @@ const getCloudinaryUrl = (publicId: string) => {
   if (!publicId || publicId === "sample_avatar") {
     return "https://res.cloudinary.com/dfxae9jrx/image/upload/v1711464455/sample_avatar.png"; 
   }
-  // Added f_auto,q_auto for better performance
   return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/c_fill,w_100,h_100,g_face,f_auto,q_auto/v1/${publicId}`;
 };
 
@@ -29,10 +31,12 @@ export default function TrainerManagementPage() {
   const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
   const [trainers, setTrainers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // --- UI MODAL STATES ---
   const [viewingCredentials, setViewingCredentials] = useState<any | null>(null);
   const [deletingStaff, setDeletingStaff] = useState<any | null>(null);
+  const [restrictionMessage, setRestrictionMessage] = useState<string | null>(null);
   const [editingStaff, setEditingStaff] = useState<any | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -53,39 +57,48 @@ export default function TrainerManagementPage() {
     (t.specialization?.toLowerCase() || "").includes(searchQuery.toLowerCase())
   );
 
+  // --- DELETE LOGIC WITH REFERENTIAL INTEGRITY ---
+  const handleInitiateDelete = async (trainer: any) => {
+    if (!tenantId) return;
+    setRestrictionMessage(null); // Reset restriction state
+    
+    try {
+      const eventsRef = collection(db, "tenants", tenantId, "events");
+      const q = query(eventsRef, where("trainerId", "==", trainer.id));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const linkedEvent = querySnapshot.docs[0].data().title || "an active event";
+        setRestrictionMessage(
+          `${trainer.name} is currently assigned to "${linkedEvent}". Please reassign or delete the event before removing this member.`
+        );
+      }
+
+      setDeletingStaff(trainer);
+    } catch (err) {
+      console.error("Integrity check failed:", err);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!tenantId || !deletingStaff) return;
+    setIsDeleting(true);
 
     try {
-      // 1. Cloudinary Cleanup
       if (deletingStaff.imgId && deletingStaff.imgId !== "sample_avatar") {
-        console.log("Attempting to delete Cloudinary asset:", deletingStaff.imgId);
-        
-        const cloudRes = await fetch("/api/admin/delete-image", {
+        await fetch("/api/admin/delete-image", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ publicIds: [deletingStaff.imgId] }),
         });
-
-        const cloudData = await cloudRes.json();
-        
-        // Log the result to browser console for debugging
-        if (cloudData.success) {
-          console.log("Cloudinary cleanup successful:", cloudData.result);
-        } else {
-          console.warn("Cloudinary cleanup partially failed or image not found:", cloudData);
-        }
       }
 
-      // 2. Firestore Deletion
       await deleteDoc(doc(db, "tenants", tenantId, "trainers", deletingStaff.id));
-      
-      // UI Cleanup
       setDeletingStaff(null);
-      console.log("Trainer record deleted from Firestore.");
     } catch (err) {
-      console.error("Critical error during deletion process:", err);
-      alert("Failed to delete trainer. Check console for details.");
+      console.error("Critical error during deletion:", err);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -154,21 +167,13 @@ export default function TrainerManagementPage() {
                   <td className="p-5 text-zinc-400 text-sm">{trainer.phone}</td>
                   <td className="p-5 text-right">
                     <div className="flex justify-end gap-2 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
-                      <button 
-                        onClick={() => {
-                          setEditingStaff(trainer);
-                          setIsEditDrawerOpen(true);
-                        }} 
-                        className="h-9 w-9 flex items-center justify-center bg-zinc-800 hover:bg-orange-600 text-white rounded-lg transition-colors"
-                      >
+                      <button onClick={() => { setEditingStaff(trainer); setIsEditDrawerOpen(true); }} className="h-9 w-9 flex items-center justify-center bg-zinc-800 hover:bg-orange-600 text-white rounded-lg transition-colors">
                         <Edit3 size={16} />
                       </button>
-
                       <button onClick={() => setViewingCredentials(trainer)} className="h-9 w-9 flex items-center justify-center bg-zinc-800 hover:bg-blue-600 text-white rounded-lg transition-colors">
                         <KeyRound size={16} />
                       </button>
-
-                      <button onClick={() => setDeletingStaff(trainer)} className="h-9 w-9 flex items-center justify-center bg-zinc-800 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors">
+                      <button onClick={() => handleInitiateDelete(trainer)} className="h-9 w-9 flex items-center justify-center bg-zinc-800 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors">
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -180,7 +185,7 @@ export default function TrainerManagementPage() {
         </div>
       </div>
 
-      {/* --- DRAWERS & MODALS --- */}
+      {/* --- MODALS --- */}
       <AnimatePresence>
         {viewingCredentials && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -199,38 +204,31 @@ export default function TrainerManagementPage() {
         )}
 
         {deletingStaff && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-zinc-900 border border-zinc-800 w-full max-w-sm rounded-3xl overflow-hidden p-8 text-center space-y-6">
-              <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto"><AlertTriangle size={32} /></div>
-              <h3 className="text-xl font-black text-white uppercase italic">Remove {deletingStaff.name.split(' ')[0]}?</h3>
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <button onClick={() => setDeletingStaff(null)} className="py-3 rounded-xl bg-zinc-800 text-white font-bold uppercase">Cancel</button>
-                <button onClick={confirmDelete} className="py-3 rounded-xl bg-red-600 text-white font-bold uppercase">Delete</button>
-              </div>
-            </motion.div>
-          </div>
+          <DeleteModal 
+            isOpen={!!deletingStaff}
+            onClose={() => { setDeletingStaff(null); setRestrictionMessage(null); }}
+            onConfirm={confirmDelete}
+            title={restrictionMessage ? "Action Blocked" : "Remove Member?"}
+            orgName={deletingStaff.name}
+            loading={isDeleting}
+            description={
+              restrictionMessage ? (
+                <div className="flex flex-col items-center text-center gap-4 py-2">
+                  <div className="h-12 w-12 bg-orange-600/10 rounded-full flex items-center justify-center">
+                    <AlertTriangle className="text-orange-600" size={24} />
+                  </div>
+                  <p className="text-white text-sm leading-relaxed">{restrictionMessage}</p>
+                </div>
+              ) : null // Uses default description from component if null
+            }
+            // Passing the message as a prop helps the Modal decide whether to show the "Terminate" button
+            isRestricted={!!restrictionMessage} 
+          />
         )}
       </AnimatePresence>
 
-      <AddTrainerDrawer 
-        isOpen={isDrawerOpen} 
-        onClose={() => setIsDrawerOpen(false)} 
-        onSuccess={() => setIsDrawerOpen(false)} 
-      />
-
-      <EditTrainerDrawer 
-        isOpen={isEditDrawerOpen} 
-        trainer={editingStaff} 
-        onClose={() => {
-          setIsEditDrawerOpen(false);
-          setEditingStaff(null);
-        }} 
-        onSuccess={() => {
-          setIsEditDrawerOpen(false);
-          setEditingStaff(null);
-        }} 
-      />
+      <AddTrainerDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} onSuccess={() => setIsDrawerOpen(false)} />
+      <EditTrainerDrawer isOpen={isEditDrawerOpen} trainer={editingStaff} onClose={() => { setIsEditDrawerOpen(false); setEditingStaff(null); }} onSuccess={() => { setIsEditDrawerOpen(false); setEditingStaff(null); }} />
     </div>
   );
 }

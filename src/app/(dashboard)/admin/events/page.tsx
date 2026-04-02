@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation"; // Added for navigation
 import { 
-  Plus, Calendar, Loader2, Users, ChevronRight, Trash2, Edit3
+  Plus, Calendar, Loader2, Users, ChevronRight, Trash2
 } from "lucide-react";
 import CreateEventModal from "@/components/modals/CreateEventModal";
 import DeleteConfirmModal from "@/components/modals/DeleteConfirmModal";
@@ -14,15 +15,11 @@ import { EventraEvent } from "@/types";
 // --- REFINED ID EXTRACTION ---
 const extractIdFromUrl = (url: string) => {
   try {
-    // Cloudinary URLs look like: .../upload/v12345/folder/image_id.jpg
     const parts = url.split('/upload/');
     if (parts.length < 2) return null;
-
-    // Remove the version (v12345/) and the file extension (.jpg)
     const pathWithExtension = parts[1].replace(/^v\d+\//, '');
     const publicId = pathWithExtension.split('.')[0];
-    
-    return publicId; // Returns "folder/image_id"
+    return publicId;
   } catch (error) {
     console.error("ID Extraction failed for URL:", url, error);
     return null;
@@ -30,9 +27,9 @@ const extractIdFromUrl = (url: string) => {
 };
 
 // --- SUB-COMPONENT: SLIDESHOW EVENT CARD ---
-function EventCard({ event, onEdit, onDelete }: { 
+function EventCard({ event, onManage, onDelete }: { 
   event: EventraEvent; 
-  onEdit: (e: EventraEvent) => void; 
+  onManage: (id: string) => void; 
   onDelete: (id: string, title: string) => void; 
 }) {
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -89,10 +86,16 @@ function EventCard({ event, onEdit, onDelete }: {
         </div>
         <p className="text-zinc-500 text-xs italic font-medium line-clamp-2 leading-relaxed">"{event.description}"</p>
         <div className="flex items-center gap-3 pt-2">
-          <button onClick={() => onEdit(event)} className="flex-grow bg-white hover:bg-orange-600 text-black hover:text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all flex items-center justify-center gap-2 group/btn">
+          <button 
+            onClick={() => onManage(event.id!)} 
+            className="flex-grow bg-white hover:bg-orange-600 text-black hover:text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all flex items-center justify-center gap-2 group/btn"
+          >
             Manage Node <ChevronRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
           </button>
-          <button onClick={() => onDelete(event.id!, event.title)} className="p-4 bg-zinc-900 text-zinc-600 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-colors border border-zinc-800">
+          <button 
+            onClick={() => onDelete(event.id!, event.title)} 
+            className="p-4 bg-zinc-900 text-zinc-600 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-colors border border-zinc-800"
+          >
             <Trash2 size={16} />
           </button>
         </div>
@@ -101,13 +104,12 @@ function EventCard({ event, onEdit, onDelete }: {
   );
 }
 
-// --- MAIN PAGE ---
 export default function EventsManagerPage() {
+  const router = useRouter(); // Initialize router
   const { tenantId } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<{id: string, title: string} | null>(null);
-  const [selectedEvent, setSelectedEvent] = useState<EventraEvent | null>(null);
   const [events, setEvents] = useState<EventraEvent[]>([]);
   const [trainers, setTrainers] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,41 +155,27 @@ export default function EventsManagerPage() {
 
     try {
       const targetEvent = events.find(e => e.id === eventToDelete.id);
-
-      // 1. Cloudinary Multi-Image Cleanup
       if (targetEvent?.images && targetEvent.images.length > 0) {
-        // Extract all IDs from the image URL array
         const publicIds = targetEvent.images
           .map(url => extractIdFromUrl(url))
           .filter(id => id !== null) as string[];
 
-        console.log("Cleaning up Cloudinary assets:", publicIds);
-
-        const cloudRes = await fetch("/api/admin/delete-image", {
+        await fetch("/api/admin/delete-image", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ publicIds }),
         });
-        
-        const cloudData = await cloudRes.json();
-        console.log("Cloudinary Cleanup Result:", cloudData);
       }
 
-      // 2. Firestore Deletion (Multi-collection)
       const tenantEventRef = doc(db, "tenants", tenantId, "events", eventToDelete.id);
       const publicEventRef = doc(db, "publicEvents", eventToDelete.id);
 
-      await Promise.all([
-        deleteDoc(tenantEventRef),
-        deleteDoc(publicEventRef)
-      ]);
+      await Promise.all([deleteDoc(tenantEventRef), deleteDoc(publicEventRef)]);
       
       setEvents(prev => prev.filter(e => e.id !== eventToDelete.id));
       setIsDeleteModalOpen(false);
-      console.log("Infrastructure Node purged successfully.");
     } catch (error) {
-      console.error("Critical: Deletion phase failed:", error);
-      alert("Purge failed. Check terminal.");
+      console.error("Purge failed:", error);
     } finally {
       setIsDeleting(false);
       setEventToDelete(null);
@@ -214,7 +202,7 @@ export default function EventsManagerPage() {
         </div>
 
         <button 
-          onClick={() => { setSelectedEvent(null); setIsModalOpen(true); }}
+          onClick={() => setIsModalOpen(true)}
           className="bg-orange-600 hover:bg-orange-500 text-white px-10 py-5 rounded-full font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all active:scale-95"
         >
           <Plus size={20} strokeWidth={3} /> Deploy Event
@@ -228,7 +216,7 @@ export default function EventsManagerPage() {
             <EventCard 
               key={event.id} 
               event={event} 
-              onEdit={(e) => { setSelectedEvent(e); setIsModalOpen(true); }} 
+              onManage={(id) => router.push(`/admin/events/${id}`)} // Updated to push route
               onDelete={handleDeleteRequest} 
             />
           ))}
@@ -240,7 +228,6 @@ export default function EventsManagerPage() {
         onClose={() => { setIsModalOpen(false); fetchEvents(); }}
         tenantId={tenantId || ""}
         trainers={trainers}
-        initialData={selectedEvent} 
       />
 
       <DeleteConfirmModal 
