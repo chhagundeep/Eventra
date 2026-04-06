@@ -5,40 +5,73 @@ import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   UserCog, ArrowLeft, Search, Plus, 
-  Mail, Phone, Shield, MoreVertical, Trash2 
+  Mail, Phone, Shield, MoreVertical, 
+  Edit2, Trash2, Image as ImageIcon 
 } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, doc, deleteDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
 
+// --- COMPONENTS ---
+import EditTrainerDrawer from "@/components/modals/EditTrainerDrawer";
+import DeleteModal from "@/components/DeleteModal"; 
+import AddTrainerDrawer from "@/components/modals/AddTrainerDrawer";
+
 export default function OrganizationTrainers() {
-  const { id } = useParams();
+  const params = useParams();
+  const id = params.id as string;
   const router = useRouter();
+  
   const [trainers, setTrainers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // --- STATE FOR MODALS & MENUS ---
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [selectedTrainer, setSelectedTrainer] = useState<any | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+
+  const CLOUD_NAME = "dfxae9jrx"; 
+  const CLOUDINARY_BASE_URL = `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/f_auto,q_auto,w_300/`;
 
   useEffect(() => {
     if (!id) return;
 
-    // Query: Users where orgId matches AND role is 'trainer'
-    const q = query(
-      collection(db, "users"), 
-      where("orgId", "==", id),
-      where("role", "==", "trainer")
-    );
+    const trainersRef = collection(db, "tenants", id, "trainers");
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(trainersRef, (snapshot) => {
       const trainerData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
       setTrainers(trainerData);
       setLoading(false);
+    }, (error) => {
+      console.error("Firestore Error:", error);
+      toast.error("Failed to sync trainer data");
+      setLoading(false);
     });
 
     return () => unsubscribe();
   }, [id]);
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedTrainer || !id) return;
+    setDeleteLoading(true);
+    try {
+      await deleteDoc(doc(db, "tenants", id, "trainers", selectedTrainer.id));
+      toast.success("Trainer record purged successfully");
+      setIsDeleteOpen(false);
+      setSelectedTrainer(null);
+    } catch (error) {
+      toast.error("Critical: Deletion failed");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   const filteredTrainers = trainers.filter(t => 
     t.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -47,12 +80,36 @@ export default function OrganizationTrainers() {
 
   return (
     <div className="space-y-8 pb-10">
-      {/* Header Navigation */}
+      {/* --- MODAL LAYER --- */}
+      <AddTrainerDrawer 
+        isOpen={isAddOpen} 
+        onClose={() => setIsAddOpen(false)} 
+        onSuccess={() => setIsAddOpen(false)} 
+      />
+      
+      <EditTrainerDrawer 
+        isOpen={isEditOpen} 
+        trainer={selectedTrainer} 
+        tenantId={id} 
+        onClose={() => { setIsEditOpen(false); setSelectedTrainer(null); }} 
+        onSuccess={() => setIsEditOpen(false)} 
+      />
+
+      <DeleteModal 
+        isOpen={isDeleteOpen}
+        onClose={() => setIsDeleteOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        orgName={selectedTrainer?.name || "this staff member"}
+        loading={deleteLoading}
+        title="Revoke Staff Access?"
+      />
+
+      {/* --- HEADER --- */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <button 
             onClick={() => router.back()}
-            className="p-3 bg-zinc-900 border border-zinc-800 rounded-2xl text-zinc-400 hover:text-white transition-all"
+            className="p-3 bg-zinc-900 border border-zinc-800 rounded-2xl text-zinc-400 hover:text-white transition-all shadow-xl active:scale-95"
           >
             <ArrowLeft size={20} />
           </button>
@@ -61,84 +118,155 @@ export default function OrganizationTrainers() {
               Authorized <span className="text-orange-600">Trainers</span>
             </h2>
             <p className="text-zinc-500 font-bold text-[10px] uppercase tracking-[0.4em] mt-2">
-              Management Portal / Node {id?.slice(0,8)}...
+              Node Management / ID: {id?.slice(0, 8)}...
             </p>
           </div>
         </div>
 
-        <button className="bg-orange-600 hover:bg-orange-500 text-white px-6 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-orange-900/20 transition-all flex items-center justify-center gap-3">
-          <Plus size={18} strokeWidth={3} /> Onboard Trainer
+        <button 
+          onClick={() => setIsAddOpen(true)}
+          className="bg-orange-600 hover:bg-orange-500 text-white px-6 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-orange-900/20 transition-all flex items-center justify-center gap-3 active:scale-95"
+        >
+          <Plus size={18} strokeWidth={3} /> Onboard Staff
         </button>
       </div>
 
-      {/* Search & Filter Bar */}
+      {/* --- SEARCH --- */}
       <div className="relative group max-w-md">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-orange-500 transition-colors" size={18} />
         <input 
           type="text"
-          placeholder="Search trainers by name or email..."
+          placeholder="Search trainers..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="bg-zinc-900/50 border border-zinc-800 rounded-2xl py-3.5 pl-12 pr-6 text-sm text-white focus:outline-none focus:border-orange-600/50 transition-all w-full"
+          className="bg-zinc-900/50 border border-zinc-800 rounded-2xl py-3.5 pl-12 pr-6 text-sm text-white focus:outline-none focus:border-orange-600/50 transition-all w-full backdrop-blur-md"
         />
       </div>
 
-      {/* Trainers Grid */}
+      {/* --- GRID --- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         <AnimatePresence mode="popLayout">
           {loading ? (
-            <p className="text-zinc-600 font-bold uppercase tracking-widest text-[10px] animate-pulse">Retrieving encrypted trainer data...</p>
-          ) : filteredTrainers.length === 0 ? (
-            <div className="col-span-full py-20 border-2 border-dashed border-zinc-800 rounded-[3rem] text-center">
-              <UserCog size={48} className="mx-auto text-zinc-800 mb-4" />
-              <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs">No trainers assigned to this node</p>
+            <div className="col-span-full py-10 flex flex-col items-center gap-4">
+               <div className="h-1 w-32 bg-zinc-800 rounded-full overflow-hidden">
+                  <motion.div initial={{ x: "-100%" }} animate={{ x: "100%" }} transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }} className="h-full w-1/2 bg-orange-600" />
+               </div>
+               <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Accessing Node...</p>
             </div>
+          ) : filteredTrainers.length === 0 ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="col-span-full py-20 border-2 border-dashed border-zinc-800 rounded-[3rem] text-center">
+              <UserCog size={48} className="mx-auto text-zinc-800 mb-4" />
+              <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs">No trainers assigned</p>
+            </motion.div>
           ) : (
             filteredTrainers.map((trainer) => (
               <motion.div 
                 layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
                 key={trainer.id}
-                className="bg-zinc-900/40 border border-zinc-800/50 p-6 rounded-[2.5rem] group hover:border-orange-600/30 transition-all relative overflow-hidden"
+                // Updated: Added dynamic z-index to handle overlaps when menu is open
+                className={`bg-zinc-900/40 border border-zinc-800/50 p-6 rounded-[2.5rem] group hover:border-orange-600/30 transition-all relative overflow-visible backdrop-blur-sm shadow-xl ${
+                  activeMenuId === trainer.id ? "z-30" : "z-10"
+                }`}
               >
                 <div className="flex items-start justify-between relative z-10">
                   <div className="flex items-center gap-4">
-                    <div className="h-14 w-14 bg-zinc-800 rounded-2xl flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform">
-                      {trainer.photoURL ? (
-                        <img src={trainer.photoURL} alt="" className="h-full w-full object-cover rounded-2xl" />
+                    <div className="h-16 w-16 bg-zinc-800 rounded-2xl flex items-center justify-center text-orange-500 overflow-hidden border border-zinc-700/50 shadow-inner relative">
+                      {trainer.imgId ? (
+                        <img 
+                          src={`${CLOUDINARY_BASE_URL}${trainer.imgId}`} 
+                          alt={trainer.name} 
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
-                        <UserCog size={24} />
+                        <UserCog size={28} />
                       )}
                     </div>
+                    
                     <div>
-                      <h4 className="font-bold text-white text-lg tracking-tight">{trainer.name || "Unnamed Trainer"}</h4>
+                      <h4 className="font-bold text-white text-lg tracking-tight truncate max-w-[150px]">
+                        {trainer.name || "Unknown"}
+                      </h4>
                       <div className="flex items-center gap-2 mt-1">
                         <Shield size={12} className="text-emerald-500" />
-                        <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Verified Specialist</span>
+                        <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Verified</span>
                       </div>
                     </div>
                   </div>
-                  <button className="p-2 text-zinc-600 hover:text-white transition-colors">
-                    <MoreVertical size={20} />
-                  </button>
+
+                  {/* --- DROPDOWN ACTION MENU --- */}
+                  <div className="relative">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveMenuId(activeMenuId === trainer.id ? null : trainer.id);
+                      }}
+                      className="p-2 text-zinc-600 hover:text-white transition-colors bg-zinc-800/50 rounded-xl relative z-50"
+                    >
+                      <MoreVertical size={20} />
+                    </button>
+
+                    <AnimatePresence>
+                      {activeMenuId === trainer.id && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40 cursor-default" 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveMenuId(null);
+                            }} 
+                          />
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            // Updated: Extremely high z-index for the menu itself
+                            className="absolute right-0 mt-2 w-48 bg-[#0d0d0d] border border-white/10 rounded-2xl shadow-2xl p-2 z-[100] overflow-hidden"
+                          >
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTrainer(trainer);
+                                setIsEditOpen(true);
+                                setActiveMenuId(null);
+                              }}
+                              className="flex items-center gap-3 w-full p-3 text-[10px] font-black uppercase text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-xl transition-all"
+                            >
+                              <Edit2 size={14} className="text-orange-600" /> Edit Profile
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTrainer(trainer);
+                                setIsDeleteOpen(true);
+                                setActiveMenuId(null);
+                              }}
+                              className="flex items-center gap-3 w-full p-3 text-[10px] font-black uppercase text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+                            >
+                              <Trash2 size={14} /> Terminate
+                            </button>
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
 
-                <div className="mt-8 space-y-3 relative z-10">
+                <div className="mt-8 space-y-3 relative z-0">
                   <div className="flex items-center gap-3 text-zinc-400 group-hover:text-zinc-200 transition-colors">
-                    <Mail size={14} className="text-orange-500/50" />
+                    <div className="h-8 w-8 rounded-xl bg-black/20 flex items-center justify-center border border-zinc-800/50">
+                        <Mail size={14} className="text-orange-500/50" />
+                    </div>
                     <span className="text-xs font-medium truncate">{trainer.email}</span>
                   </div>
                   <div className="flex items-center gap-3 text-zinc-400">
-                    <Phone size={14} className="text-orange-500/50" />
-                    <span className="text-xs font-medium">{trainer.phone || "No contact linked"}</span>
+                    <div className="h-8 w-8 rounded-xl bg-black/20 flex items-center justify-center border border-zinc-800/50">
+                        <Phone size={14} className="text-orange-500/50" />
+                    </div>
+                    <span className="text-xs font-medium tracking-tighter">{trainer.phone || "No contact linked"}</span>
                   </div>
-                </div>
-
-                {/* Decorative background element */}
-                <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
-                  <UserCog size={120} />
                 </div>
               </motion.div>
             ))

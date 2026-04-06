@@ -96,7 +96,7 @@ export default function SuperAdminDashboard() {
       {/* TOP STATS GRID */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {[
-          { label: "Active Nodes", value: tenants.length, icon: Globe, color: "text-blue-500", bg: "bg-blue-500/10" },
+          { label: "Organizations", value: tenants.length, icon: Globe, color: "text-blue-500", bg: "bg-blue-500/10" },
           { label: "Enterprise Tier", value: tenants.filter(t => t.plan === 'Enterprise').length, icon: ShieldCheck, color: "text-purple-500", bg: "bg-purple-500/10" },
           { label: "Network Health", value: "99.9%", icon: Activity, color: "text-emerald-500", bg: "bg-emerald-500/10" },
           { label: "Estimated ARR", value: `$${(tenants.length * 1490).toLocaleString()}`, icon: Building2, color: "text-orange-500", bg: "bg-orange-500/10" },

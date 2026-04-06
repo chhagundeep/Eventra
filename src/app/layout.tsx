@@ -1,11 +1,11 @@
 // src/app/layout.tsx
-import "./globals.css"; // This is the only place this should be!
+import "./globals.css";
 import { AuthProvider } from "@/hooks/useAuth"; 
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="antialiased bg-[#0a0a0a]">
+    <html lang="en" className="dark">
+      <body className="antialiased min-h-screen">
         <AuthProvider>
           {children}
         </AuthProvider>

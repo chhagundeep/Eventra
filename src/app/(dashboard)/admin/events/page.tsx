@@ -196,7 +196,7 @@ export default function EventsManagerPage() {
             <Calendar size={28} />
           </div>
           <div>
-            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em]">Active Nodes</p>
+            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em]">Active Events</p>
             <p className="text-3xl font-black text-white">{events.length}</p>
           </div>
         </div>

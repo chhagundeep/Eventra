@@ -10,13 +10,13 @@ import {
   Globe, Zap
 } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { doc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, onSnapshot, collection, query, where } from "firebase/firestore";
 import Link from "next/link";
 import toast from "react-hot-toast";
 
 export default function OrganizationDeepDive() {
   const params = useParams();
-  const id = params.id as string; // Ensure id is treated as a string
+  const id = params.id as string; 
   const router = useRouter();
   
   const [org, setOrg] = useState<any>(null);
@@ -26,8 +26,8 @@ export default function OrganizationDeepDive() {
   useEffect(() => {
     if (!id) return;
 
-    // Listen to the specific organization document using the Unique ID
-    const unsubscribe = onSnapshot(doc(db, "tenants", id), (docSnap) => {
+    // 1. Listen to the specific organization document
+    const unsubOrg = onSnapshot(doc(db, "tenants", id), (docSnap) => {
       if (docSnap.exists()) {
         setOrg({ id: docSnap.id, ...docSnap.data() });
       } else {
@@ -35,33 +35,33 @@ export default function OrganizationDeepDive() {
       }
       setLoading(false);
     }, (error) => {
-      console.error("Snapshot error:", error);
+      console.error("Org Snapshot error:", error);
       setLoading(false);
     });
 
-    // Fetch associated counts based on the tenantId (the unique ID)
-    const fetchCounts = async () => {
-      try {
-        const trainersQ = query(collection(db, "users"), where("tenantId", "==", id), where("role", "==", "trainer"));
-        const usersQ = query(collection(db, "users"), where("tenantId", "==", id), where("role", "==", "user"));
-        
-        const [trainersSnap, usersSnap] = await Promise.all([
-          getDocs(trainersQ),
-          getDocs(usersQ)
-        ]);
+    // 2. Real-time listeners with filtering logic
+    const trainersRef = collection(db, "tenants", id, "trainers");
+    const unsubTrainers = onSnapshot(trainersRef, (snap) => {
+      setStats(prev => ({ ...prev, trainers: snap.size }));
+    });
 
-        setStats({
-          trainers: trainersSnap.size,
-          users: usersSnap.size,
-          events: 0 // Placeholder for future Eventra features
-        });
-      } catch (err) {
-        console.error("Stats fetch error:", err);
-      }
+    const usersRef = collection(db, "tenants", id, "users");
+    const usersQuery = query(usersRef, where("role", "==", "user"));
+    const unsubUsers = onSnapshot(usersQuery, (snap) => {
+      setStats(prev => ({ ...prev, users: snap.size }));
+    });
+
+    const eventsRef = collection(db, "tenants", id, "events");
+    const unsubEvents = onSnapshot(eventsRef, (snap) => {
+      setStats(prev => ({ ...prev, events: snap.size }));
+    });
+
+    return () => {
+      unsubOrg();
+      unsubTrainers();
+      unsubUsers();
+      unsubEvents();
     };
-
-    fetchCounts();
-    return () => unsubscribe();
   }, [id]);
 
   if (loading) return (
@@ -112,21 +112,43 @@ export default function OrganizationDeepDive() {
         </div>
       </div>
 
-      {/* STATS GRID */}
+      {/* STATS GRID - Updated hrefs for Super Admin Context */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-          { label: "Active Trainers", value: stats.trainers, icon: UserCog, color: "text-orange-500", path: "trainers" },
-          { label: "Total Members", value: stats.users, icon: Users, color: "text-blue-500", path: "users" },
-          { label: "Network Events", value: stats.events, icon: Zap, color: "text-purple-500", path: "events" },
+          { 
+            label: "Active Trainers", 
+            value: stats.trainers, 
+            icon: UserCog, 
+            color: "text-orange-500", 
+            // FIXED: Now points to the trainers list within the super-admin directory
+            href: `/super-admin/organizations/${id}/trainers` 
+          },
+          { 
+            label: "Platform Users", 
+            value: stats.users, 
+            icon: Users, 
+            color: "text-blue-500", 
+            href: `/super-admin/organizations/${id}/users` 
+          },
+          { 
+            label: "Network Events", 
+            value: stats.events, 
+            icon: Zap, 
+            color: "text-purple-500", 
+            href: `/admin/schedule?tenantId=${id}` 
+          },
         ].map((stat) => (
-          <Link href={`/super-admin/organizations/${id}/${stat.path}`} key={stat.label}>
+          <Link href={stat.href} key={stat.label} className="block">
             <motion.div 
               whileHover={{ y: -5, borderColor: "rgba(234, 88, 12, 0.3)" }}
               className="bg-zinc-900/40 border border-zinc-800/50 p-8 rounded-[2.5rem] group cursor-pointer transition-all backdrop-blur-sm shadow-2xl shadow-black/20"
             >
               <div className="flex items-center justify-between mb-4">
-                <stat.icon className={`${stat.color}`} size={28} />
-                <ExternalLink size={14} className="text-zinc-600 group-hover:text-white transition-colors" />
+                <stat.icon className={`${stat.color} group-hover:scale-110 transition-transform`} size={28} />
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black text-zinc-600 uppercase opacity-0 group-hover:opacity-100 transition-opacity">Deep Dive</span>
+                  <ExternalLink size={14} className="text-zinc-600 group-hover:text-white transition-colors" />
+                </div>
               </div>
               <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">{stat.label}</p>
               <h3 className="text-4xl font-black text-white mt-1">{stat.value}</h3>
@@ -152,14 +174,9 @@ export default function OrganizationDeepDive() {
               </div>
               
               <div className="flex justify-between items-center pt-2">
-  <span className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">
-    Network ID
-  </span>
-  {/* Removed 'uppercase' to preserve the original Node ID casing */}
-  <span className="text-zinc-400 font-mono text-xs">
-    {id}
-  </span>
-</div>
+                <span className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Network ID</span>
+                <span className="text-zinc-400 font-mono text-xs">{id}</span>
+              </div>
             </div>
 
             <div className="bg-gradient-to-br from-orange-600/10 to-transparent border border-orange-600/20 rounded-[2rem] p-8 space-y-4">
@@ -189,7 +206,6 @@ export default function OrganizationDeepDive() {
           </div>
         </div>
 
-        {/* PERFORMANCE SECTION */}
         <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[3rem] p-10 backdrop-blur-md">
           <h3 className="text-xs font-black text-white uppercase tracking-[0.3em] mb-10 flex items-center gap-3">
             <Activity size={16} className="text-emerald-500" /> Live Node Performance

@@ -8,22 +8,60 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { 
-  collection, onSnapshot, query, orderBy 
+  collection, onSnapshot, query, orderBy, where 
 } from "firebase/firestore";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import DeleteModal from "@/components/DeleteModal";
 
+// --- UPDATED LIVE METRICS COMPONENT ---
+function LiveOrganizationMetrics({ tenantId }: { tenantId: string }) {
+  const [metrics, setMetrics] = useState({ trainers: 0, users: 0 });
+
+  useEffect(() => {
+    if (!tenantId) return;
+
+    // 1. Listen to Trainers sub-collection
+    const trainersRef = collection(db, "tenants", tenantId, "trainers");
+    const unsubTrainers = onSnapshot(trainersRef, (snap) => {
+      setMetrics(prev => ({ ...prev, trainers: snap.size }));
+    }, (err) => console.error("Trainers Fetch Error:", err));
+
+    // 2. Listen to Users sub-collection with Role Filter
+    const usersRef = collection(db, "tenants", tenantId, "users");
+    const usersQuery = query(usersRef, where("role", "==", "user"));
+    
+    const unsubUsers = onSnapshot(usersQuery, (snap) => {
+      setMetrics(prev => ({ ...prev, users: snap.size }));
+    }, (err) => console.error("Users Fetch Error:", err));
+
+    return () => {
+      unsubTrainers();
+      unsubUsers();
+    };
+  }, [tenantId]);
+
+  return (
+    <div className="flex items-center justify-center gap-6">
+      <div className="text-center">
+        <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Trainers</p>
+        <p className="text-sm font-bold text-zinc-400">{metrics.trainers}</p>
+      </div>
+      <div className="text-center">
+        <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Users</p>
+        <p className="text-sm font-bold text-zinc-400">{metrics.users}</p>
+      </div>
+    </div>
+  );
+}
+
 interface Tenant {
-  id: string; // This is the unique Firestore Document ID
+  id: string;
   name: string;
   adminUid: string;
   adminEmail?: string;
   password?: string;
   status?: "active" | "inactive";
-  trainerCount?: number;
-  userCount?: number;
-  plan?: string;
 }
 
 export default function OrganizationsPage() {
@@ -33,22 +71,20 @@ export default function OrganizationsPage() {
   const [selectedOrg, setSelectedOrg] = useState<Tenant | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // REAL-TIME DATA FETCHING
   useEffect(() => {
     const q = query(collection(db, "tenants"), orderBy("createdAt", "desc"));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
-        id: doc.id, // Explicitly mapping the unique ID string
+        id: doc.id,
         ...doc.data()
-      } as Tenant)).filter(t => t.name); // Filter out any corrupt or empty entries
+      } as Tenant)).filter(t => t.name); 
       setTenants(data);
     });
 
     return () => unsubscribe();
   }, []);
 
-  // DELETION HANDLER (Via API Route for complete cleanup)
   const handleDeleteConfirm = async () => {
     if (!selectedOrg) return;
     setDeleteLoading(true);
@@ -86,7 +122,6 @@ export default function OrganizationsPage() {
 
   return (
     <div className="space-y-8 pb-10">
-      {/* HEADER & FILTER */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
           <h2 className="text-4xl font-black italic tracking-tighter uppercase text-white leading-none">
@@ -109,7 +144,6 @@ export default function OrganizationsPage() {
         </div>
       </div>
 
-      {/* INVENTORY TABLE */}
       <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[2.5rem] overflow-hidden backdrop-blur-md">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[1000px]">
@@ -157,16 +191,7 @@ export default function OrganizationsPage() {
                     </td>
 
                     <td className="px-6 py-5">
-                      <div className="flex items-center justify-center gap-6">
-                        <div className="text-center">
-                          <p className="text-[10px] font-black text-zinc-600 uppercase">Trainers</p>
-                          <p className="text-sm font-bold text-zinc-400">{org.trainerCount || 0}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-[10px] font-black text-zinc-600 uppercase">Users</p>
-                          <p className="text-sm font-bold text-zinc-400">{org.userCount || 0}</p>
-                        </div>
-                      </div>
+                      <LiveOrganizationMetrics tenantId={org.id} />
                     </td>
 
                     <td className="px-6 py-5">

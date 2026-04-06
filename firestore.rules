@@ -99,11 +99,12 @@ service cloud.firestore {
       }
 
       /* -------- TRAINERS -------- */
-      match /trainers/{trainerId} {
-        allow read: if isAuthenticated() && (isSuperAdmin() || belongsToTenant(tenantId));
-        allow create, update, delete: if (isAdmin() || isSuperAdmin()) && belongsToTenant(tenantId);
-      }
-
+match /trainers/{trainerId} {
+  allow read: if isAuthenticated() && (isSuperAdmin() || belongsToTenant(tenantId));
+  
+  // Allow Super Admin always, or Admin if they belong to the specific tenant
+  allow create, update, delete: if isSuperAdmin() || (isAdmin() && belongsToTenant(tenantId));
+}
       /* -------- EVENTS -------- */
       match /events/{eventId} {
         allow read: if true;
