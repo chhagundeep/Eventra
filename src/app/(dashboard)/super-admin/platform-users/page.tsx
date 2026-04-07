@@ -2,212 +2,319 @@
 
 import React, { useState, useEffect } from "react";
 import { 
-  ShieldCheck, Search, 
-  ArrowUpRight, Activity, AlertTriangle, Trash2
+  Search, Building, Fingerprint, Mail, Trash2, 
+  ShieldCheck, Power, AlertTriangle, X, Calendar as CalendarIcon 
 } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { collectionGroup, onSnapshot, query, where, collection, doc, deleteDoc } from "firebase/firestore";
+import { collectionGroup, onSnapshot, query, where, doc, getDoc, updateDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
+
+/**
+ * SHARED UI COMPONENTS
+ */
+const DataRow = ({ label, value, icon, isMono }: any) => (
+  <div className="flex flex-col gap-0.5">
+    <span className="text-[7px] font-black text-zinc-500 uppercase flex items-center gap-1">
+      {icon} {label}
+    </span>
+    <span className={`text-[10px] font-bold ${isMono ? 'font-mono text-zinc-500' : 'text-zinc-300'} break-all leading-tight`}>
+      {value}
+    </span>
+  </div>
+);
 
 export default function PlatformUsers() {
   const [activeTab, setActiveTab] = useState<"admins" | "trainers" | "users">("admins");
   const [usersData, setUsersData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [existingTenants, setExistingTenants] = useState<Set<string>>(new Set());
+  const [hasMounted, setHasMounted] = useState(false);
+  
+  // DYNAMIC DATE STATE
+  const [currentDate, setCurrentDate] = useState(new Date());
+
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<any>(null);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "tenants"), (snapshot) => {
-      const ids = new Set(snapshot.docs.map(doc => doc.id));
-      setExistingTenants(ids);
-    });
-    return () => unsubscribe();
+    setHasMounted(true);
+    const dateTimer = setInterval(() => {
+      setCurrentDate(new Date());
+    }, 60000);
+    return () => clearInterval(dateTimer);
   }, []);
 
   useEffect(() => {
+    if (!hasMounted) return;
+
     setLoading(true);
     const roleMap: Record<string, string> = { admins: "admin", trainers: "trainer", users: "user" };
     const q = query(collectionGroup(db, "users"), where("role", "==", roleMap[activeTab]));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(docSnap => {
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      const tenantDocs = snapshot.docs.filter(docSnap => docSnap.ref.path.split('/').length === 4);
+
+      const dataPromises = tenantDocs.map(async (docSnap) => {
         const rawData = docSnap.data();
-        const path = docSnap.ref.path;
-        const pathSegments = path.split('/');
-        const tenantId = path.includes('tenants') ? pathSegments[1] : "Global System";
-        const isGhostNode = path.includes('tenants') && !existingTenants.has(tenantId);
+        const pathSegments = docSnap.ref.path.split('/');
+        const tenantId = pathSegments[1]; 
+
+        let organizationName = "Unnamed Org";
+        try {
+          const tenantSnap = await getDoc(doc(db, "tenants", tenantId));
+          if (tenantSnap.exists()) {
+            organizationName = tenantSnap.data().name || organizationName;
+          }
+        } catch (e) {
+          console.error("Tenant fetch error:", e);
+        }
 
         return {
           id: docSnap.id,
-          ...rawData,
-          path, // Store full path for deletion
-          isGhostNode,
-          parentOrg: tenantId,
-          compositeKey: `${path}-${docSnap.id}`,
-          displayName: rawData.name || rawData.email?.split('@')[0] || "Unknown Node",
-          displayStatus: isGhostNode ? 'orphaned' : (rawData.status || 'active')
+          tenantNodeId: tenantId,
+          orgName: organizationName,
+          status: rawData.status || "inactive",
+          email: rawData.email || "No Email",
+          compositeKey: docSnap.ref.path,
+          fullPath: docSnap.ref.path
         };
-      }).filter(user => pathIncludesTenant(user.path));
+      });
 
-      setUsersData(data);
+      const resolvedData = await Promise.all(dataPromises);
+      setUsersData(resolvedData);
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [activeTab, existingTenants]);
+  }, [activeTab, hasMounted]);
 
-  const pathIncludesTenant = (path: string) => path.includes('tenants');
-
-  const handlePurgeNode = async (user: any) => {
-  if (!confirm(`Permanently purge orphaned node: ${user.displayName}?`)) return;
-  
-  try {
-    // Call your API route instead of deleteDoc directly
-    const response = await fetch('/api/admin/terminate-tenant', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        tenantId: user.parentOrg, // e.g., "yoga-club"
-        adminUid: user.id          // The UID of the admin
-      }),
-    });
-
-    if (response.ok) {
-      toast.success("Identity purged from Auth and Topology");
-    } else {
-      throw new Error("API failure");
+  const handleToggleStatus = async (user: any) => {
+    const newStatus = user.status === "active" ? "inactive" : "active";
+    const userRef = doc(db, user.fullPath);
+    
+    try {
+      await updateDoc(userRef, { status: newStatus });
+      toast.success(`User set to ${newStatus}`);
+    } catch (error) {
+      toast.error("Failed to update status");
     }
-  } catch (error) {
-    toast.error("Cleanup failed. Check Auth console.");
-  }
-};
+  };
 
-  const filteredUsers = usersData.filter(user => 
-    user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.parentOrg?.toLowerCase().includes(searchTerm.toLowerCase())
+  const handleDeleteUser = (user: any) => {
+    setUserToDelete(user);
+    setIsModalOpen(true);
+  };
+
+  const executeDelete = async () => {
+    if (!userToDelete) return;
+    
+    setIsModalOpen(false);
+    const loadingToast = toast.loading("Purging Node...");
+    
+    try {
+      const res = await fetch("/api/admin/delete-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId: userToDelete.tenantNodeId, userId: userToDelete.id }),
+      });
+      if ((await res.json()).success) {
+        toast.success("Identity Purged.", { id: loadingToast });
+      } else {
+        throw new Error("Failed");
+      }
+    } catch (error: any) {
+      toast.error(error.message, { id: loadingToast });
+    } finally {
+      setUserToDelete(null);
+    }
+  };
+
+  const filtered = usersData.filter(u => 
+    u.orgName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    u.tenantNodeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  if (!hasMounted) return null;
+
+  // Render variables after mount to prevent hydration mismatch
+  const formattedMonth = currentDate.toLocaleString('default', { month: 'long' });
+  const formattedDay = currentDate.getDate();
+  const formattedWeekday = currentDate.toLocaleString('default', { weekday: 'long' });
+
   return (
-    <div className="min-h-screen bg-black text-white p-8 font-sans">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12">
-        <div>
-          <h2 className="text-6xl font-black italic tracking-tighter uppercase leading-none mb-2">
-            Identity <span className="text-orange-600">Topology</span>
-          </h2>
-          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-[0.5em] ml-1">
-            System Monitoring Node v2.2
-          </p>
+    <div className="relative min-h-screen bg-black text-zinc-400 p-3 md:p-8 font-sans">
+      
+      {/* MODAL OVERLAY */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-md bg-black/60">
+          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-3xl p-8 shadow-2xl shadow-orange-900/20 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-start mb-6">
+              <div className="p-3 bg-red-500/10 rounded-2xl border border-red-500/20">
+                <AlertTriangle className="text-red-600" size={24} />
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="text-zinc-600 hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            <h2 className="text-white text-lg font-black uppercase tracking-tight mb-2">Confirm Node Purge</h2>
+            <p className="text-zinc-500 text-xs font-medium leading-relaxed mb-8">
+              You are about to permanently delete <span className="text-orange-500 font-bold">{userToDelete?.email}</span> from the <span className="text-zinc-300 font-bold">{userToDelete?.orgName}</span> network. This action cannot be reversed.
+            </p>
+
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={executeDelete}
+                className="w-full bg-red-600 hover:bg-red-500 text-white font-black uppercase text-[10px] tracking-widest py-4 rounded-2xl transition-all shadow-lg shadow-red-900/20"
+              >
+                Confirm Permanent Purge
+              </button>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-black uppercase text-[10px] tracking-widest py-4 rounded-2xl transition-all"
+              >
+                Cancel Action
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-4">
-          <StatCard icon={<ShieldCheck size={18}/>} label="Active Nodes" value={usersData.filter(u => !u.isGhostNode).length} color="border-emerald-500/20" />
-          <StatCard icon={<AlertTriangle size={18}/>} label="Orphaned" value={usersData.filter(u => u.isGhostNode).length} color="border-red-500/20" />
+      )}
+
+      {/* TITLE SECTION WITH REPAIRED NESTING & SPACING */}
+      <div className="mb-10 pt-2">
+        <h2 className="text-3xl md:text-4xl font-black italic tracking-tighter uppercase leading-none">
+            Platform <span className="text-orange-600">Users</span>
+        </h2>
+      </div>
+
+      {/* SEARCH BAR */}
+      <div className="relative mb-10 group">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-700 group-focus-within:text-orange-500 transition-colors" size={16} />
+        <input 
+          className="w-full bg-zinc-900/20 border border-zinc-800/60 rounded-2xl pl-12 pr-4 py-4 text-xs text-zinc-200 outline-none focus:border-orange-600/40 focus:bg-zinc-900/40 transition-all placeholder:text-zinc-700"
+          placeholder="Search Identity Stream (Email, ID, or Org)..."
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
+      {/* ACCESS MANAGEMENT HEADER */}
+      <div className="flex items-center justify-between mb-8 px-1">
+        <div className="flex flex-col">
+           <h1 className="text-white text-[11px] font-black uppercase tracking-[0.3em] flex items-center gap-2">
+             <ShieldCheck size={14} className="text-orange-600" />
+             Access Management
+           </h1>
+           <div className="flex items-center gap-2 mt-1">
+             <CalendarIcon size={10} className="text-zinc-700" />
+             <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">
+               {formattedWeekday}, {formattedDay} {formattedMonth}
+             </span>
+           </div>
+        </div>
+        <div className="flex items-center gap-2 bg-zinc-900/50 px-3 py-1.5 rounded-lg border border-zinc-800/50">
+           <div className="h-1.5 w-1.5 rounded-full bg-orange-600 animate-pulse" />
+           <span className="text-[8px] font-black text-zinc-300 uppercase tracking-widest">Live Nodes: {filtered.length}</span>
         </div>
       </div>
 
-      {/* Tabs & Search */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
-        <div className="lg:col-span-8 flex bg-zinc-900/40 border border-zinc-800/50 p-1.5 rounded-2xl backdrop-blur-xl">
-          {['admins', 'trainers', 'users'].map((tab) => (
-            <button key={tab} onClick={() => setActiveTab(tab as any)}
-              className={`flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all ${
-                activeTab === tab ? "bg-orange-600 text-white" : "text-zinc-500 hover:text-zinc-300"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-        <div className="lg:col-span-4 relative">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-600" size={18} />
-          <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Filter nodes..." 
-            className="w-full bg-zinc-900/20 border border-zinc-800/50 rounded-2xl pl-14 pr-6 py-4 text-xs font-bold outline-none focus:border-orange-600/50"
-          />
-        </div>
+      {/* TABS */}
+      <div className="flex bg-zinc-900/40 p-1.5 rounded-2xl border border-zinc-800/40 mb-8">
+        {['admins', 'trainers', 'users'].map((t) => (
+          <button key={t} onClick={() => setActiveTab(t as any)}
+            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
+              activeTab === t ? "bg-orange-600 text-white shadow-xl shadow-orange-900/20 scale-[1.02]" : "text-zinc-600 hover:text-zinc-400"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
       </div>
 
-      {/* Table */}
-      <div className="bg-zinc-900/10 border border-zinc-800/50 rounded-[2rem] overflow-hidden backdrop-blur-md">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-zinc-900/40 border-b border-zinc-800/50">
-              <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Node Identity</th>
-              <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Parent Org</th>
-              <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Role</th>
-              <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Status</th>
-              <th className="px-8 py-6 text-right text-[10px] font-black uppercase tracking-widest text-zinc-500">Management</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-800/30">
-            {loading ? <LoadingSkeleton /> : filteredUsers.map((user) => (
-              <tr key={user.compositeKey} className={`group transition-colors ${user.isGhostNode ? 'bg-red-950/5 hover:bg-red-950/10' : 'hover:bg-zinc-800/20'}`}>
-                <td className="px-8 py-6">
-                  <div className="flex items-center gap-4">
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center font-black border ${
-                      user.isGhostNode ? 'bg-red-900/20 border-red-500/50 text-red-500' : 'bg-zinc-800 border-zinc-700 text-zinc-400 group-hover:border-orange-600/50'
-                    }`}>
-                      {user.isGhostNode ? <AlertTriangle size={14} /> : user.displayName.charAt(0)}
+      {loading ? (
+        <div className="py-32 text-center">
+           <div className="inline-block h-4 w-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin mb-4" />
+           <div className="text-[8px] font-black uppercase tracking-[0.8em] text-zinc-800 text-center ml-2">Decrypting</div>
+        </div>
+      ) : (
+        <div className="max-w-full">
+          {/* MOBILE LIST */}
+          <div className="grid grid-cols-1 gap-4 md:hidden">
+            {filtered.map((user) => (
+              <div key={user.compositeKey} className="bg-zinc-900/20 border border-zinc-800/30 rounded-2xl p-5 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-zinc-800/50 rounded-xl border border-zinc-700/30">
+                      <Building size={14} className="text-orange-500" />
                     </div>
-                    <div>
-                      <p className={`text-sm font-bold uppercase ${user.isGhostNode ? 'text-red-400' : 'text-zinc-100 group-hover:text-orange-500'}`}>{user.displayName}</p>
-                      <p className="text-[10px] text-zinc-600 font-medium">{user.email}</p>
-                    </div>
+                    <h4 className="text-[12px] font-black text-zinc-100 uppercase tracking-tight">{user.orgName}</h4>
                   </div>
-                </td>
-                <td className="px-8 py-6">
-                  <span className={`text-[10px] font-bold px-3 py-1 rounded-full border ${user.isGhostNode ? 'border-red-900/50 text-red-500/70' : 'border-zinc-800 text-zinc-400'}`}>
-                    {user.parentOrg}
-                  </span>
-                </td>
-                <td className="px-8 py-6">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">{user.role}</span>
-                </td>
-                <td className="px-8 py-6">
-                  <div className="flex items-center gap-2">
-                    <div className={`h-1.5 w-1.5 rounded-full ${user.isGhostNode ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
-                    <span className={`text-[10px] font-bold uppercase tracking-tighter ${user.isGhostNode ? 'text-red-500' : 'text-zinc-400'}`}>
-                      {user.isGhostNode ? 'Orphaned Node' : 'Active'}
-                    </span>
+                  <div className="flex gap-2">
+                    <button onClick={() => handleToggleStatus(user)} className={`p-2 rounded-lg border transition-all ${user.status === 'active' ? 'bg-orange-500/10 border-orange-500/40 text-orange-500' : 'bg-zinc-800 border-zinc-700 text-zinc-600'}`}>
+                      <Power size={14} />
+                    </button>
+                    <button onClick={() => handleDeleteUser(user)} className="p-2 bg-red-500/5 border border-red-500/20 text-red-900 rounded-lg">
+                      <Trash2 size={14} />
+                    </button>
                   </div>
-                </td>
-                <td className="px-8 py-6 text-right">
-                  {user.isGhostNode ? (
-                    <button onClick={() => handlePurgeNode(user)} className="p-2.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-all">
-                      <Trash2 size={16} />
-                    </button>
-                  ) : (
-                    <button className="p-2.5 text-zinc-600 hover:text-white hover:bg-zinc-800 rounded-lg">
-                      <ArrowUpRight size={18} />
-                    </button>
-                  )}
-                </td>
-              </tr>
+                </div>
+                <div className="grid grid-cols-1 gap-4 pt-4 border-t border-zinc-800/50">
+                  <DataRow label="Network Mail" value={user.email} icon={<Mail size={10}/>} />
+                  <DataRow label="Node ID" value={user.tenantNodeId} icon={<Fingerprint size={10}/>} isMono />
+                </div>
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </div>
+
+          {/* DESKTOP TABLE */}
+          <div className="hidden md:block overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-900/5 backdrop-blur-sm">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-zinc-900/40 border-b border-zinc-800/80">
+                <tr>
+                  <th className="px-8 py-5 text-[9px] font-black uppercase tracking-[0.2em] text-zinc-600 whitespace-nowrap">Organization Entity</th>
+                  <th className="px-8 py-5 text-[9px] font-black uppercase tracking-[0.2em] text-zinc-600">Access Key</th>
+                  <th className="px-8 py-5 text-[9px] font-black uppercase tracking-[0.2em] text-zinc-600 text-center">Status</th>
+                  <th className="px-8 py-5 text-[9px] font-black uppercase tracking-[0.2em] text-zinc-600 text-right">Node Control</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/20">
+                {filtered.map((user) => (
+                  <tr key={user.compositeKey} className="group hover:bg-zinc-900/30 transition-all">
+                    <td className="px-8 py-5 whitespace-nowrap">
+                       <div className="flex flex-col">
+                          <span className="text-white font-bold text-[11px] uppercase tracking-wide">{user.orgName}</span>
+                          <span className="text-[8px] font-mono text-zinc-600 mt-1">{user.tenantNodeId}</span>
+                       </div>
+                    </td>
+                    <td className="px-8 py-5 text-[10px] text-zinc-400 font-medium">{user.email}</td>
+                    <td className="px-8 py-5">
+                       <button 
+                        onClick={() => handleToggleStatus(user)}
+                        className={`mx-auto flex items-center gap-2 px-3 py-1 rounded-full border text-[8px] font-black uppercase transition-all ${
+                          user.status === 'active' 
+                          ? 'bg-orange-500/5 border-orange-500/30 text-orange-500' 
+                          : 'bg-zinc-800/50 border-zinc-700 text-zinc-600'
+                        }`}
+                       >
+                         <div className={`h-1 w-1 rounded-full ${user.status === 'active' ? 'bg-orange-500 shadow-[0_0_5px_rgba(249,115,22,0.8)]' : 'bg-zinc-600'}`} />
+                         {user.status}
+                       </button>
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex justify-end gap-2 opacity-20 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => handleDeleteUser(user)} className="p-2 text-zinc-700 hover:text-red-500 transition-colors">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
-
-function StatCard({ icon, label, value, color }: any) {
-  return (
-    <div className={`bg-zinc-900/40 border ${color} p-5 rounded-2xl min-w-[160px]`}>
-      <div className="flex items-center gap-3 mb-2">
-        <div className="text-zinc-500">{icon}</div>
-        <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">{label}</p>
-      </div>
-      <p className="text-2xl font-black text-white italic">{value}</p>
-    </div>
-  );
-}
-
-function LoadingSkeleton() {
-  return <tr><td colSpan={5} className="py-24 text-center text-zinc-600 text-[10px] font-black uppercase tracking-[0.4em] animate-pulse">Syncing Identity Stream...</td></tr>;
-}
-
-function EmptyState({ tab }: { tab: string }) {
-  return <tr><td colSpan={5} className="py-24 text-center text-zinc-600 text-[10px] font-black uppercase tracking-widest">No nodes detected.</td></tr>;
 }

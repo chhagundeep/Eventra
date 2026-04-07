@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Add this to your globals.css */
+* {
+  touch-action: manipulation;
+}
+
 /* Add this to your globals.css if you want to hide scrollbars while keeping functionality */
 @layer utilities {
   .scrollbar-hide::-webkit-scrollbar {

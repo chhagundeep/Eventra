@@ -1,193 +1,192 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { 
   Calendar as CalendarIcon, ChevronLeft, ChevronRight, 
-  Plus, Clock, TrendingUp, Download, RefreshCw, CheckCircle2, X 
+  Plus, Clock, TrendingUp, Download, RefreshCw, CheckCircle2 
 } from "lucide-react";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 
 export default function SuperAdminSchedule() {
+  const router = useRouter();
   const [isSyncing, setIsSyncing] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [currentDate, setCurrentDate] = useState(new Date());
 
-  // 1. Functional: Export Report to CSV
+  // Helper for "Today" logic
+  const today = new Date();
+  const todayDateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  useEffect(() => {
+    const q = query(collection(db, "publicEvents"), orderBy("date", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const eventList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setEvents(eventList);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Calendar Logic
+  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+  
+  const monthName = currentDate.toLocaleString('default', { month: 'long' });
+  const year = currentDate.getFullYear();
+
+  const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+
   const exportToCSV = () => {
-    const data = [
-      ["Event Name", "Organization", "Date", "Status"],
-      ["Global Summit", "Alpha IT", "2026-05-23", "Confirmed"],
-      ["Staff Audit", "Beta Corp", "2026-05-17", "Pending"]
-    ];
-    const csvContent = "data:text/csv;charset=utf-8," + data.map(e => e.join(",")).join("\n");
-    const encodedUri = encodeURI(csvContent);
+    const headers = ["Event Name", "Category", "Date", "Location"];
+    const rows = events.map(event => [
+      `"${event.title}"`, `"${event.category}"`, `"${event.date}"`, `"${event.location || 'N/A'}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].map(e => e.join(",")).join("\n");
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "platform_report_may_2026.csv");
-    document.body.appendChild(link);
+    link.href = encodeURI(csvContent);
+    link.download = `platform_report_${monthName}_${year}.csv`;
     link.click();
   };
 
-  // 2. Functional: Integrated Google Calendar Sync (No Browser Alert)
-  const handleGoogleSync = async () => {
-    setIsSyncing(true);
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsSyncing(false);
-    
-    // Trigger custom UI notification
-    setShowToast(true);
-    
-    // Auto-hide after 4 seconds
-    setTimeout(() => setShowToast(false), 4000);
-  };
-
   return (
-    <div className="min-h-screen bg-[#050505] text-white space-y-8 p-8 relative overflow-hidden">
+    <div className="min-h-screen bg-[#050505] text-white p-4 md:p-6 space-y-6">
       
-      {/* --- CUSTOM UI TOAST NOTIFICATION --- */}
       {showToast && (
-        <div className="fixed top-8 right-8 z-100 animate-in fade-in slide-in-from-right-8 duration-300">
-          <div className="bg-zinc-900 border border-orange-600/50 p-4 rounded-2xl shadow-2xl shadow-orange-900/40 backdrop-blur-xl flex items-center gap-4 min-w-[320px]">
-            <div className="bg-orange-600/20 p-2 rounded-full">
-              <CheckCircle2 className="text-orange-500" size={20} />
+        <div className="fixed top-5 right-5 z-[100] animate-in slide-in-from-right duration-300">
+          <div className="bg-zinc-900 border border-orange-600/50 p-4 rounded-2xl shadow-2xl flex items-center gap-4">
+            <CheckCircle2 className="text-orange-500" size={20} />
+            <div>
+              <p className="text-[10px] font-black uppercase">Sync Successful</p>
+              <p className="text-[9px] text-zinc-500 font-bold uppercase">Database aligned with G-Cal</p>
             </div>
-            <div className="flex-1">
-              <p className="text-[10px] font-black uppercase tracking-widest text-white">Sync Successful</p>
-              <p className="text-[9px] text-zinc-500 font-bold uppercase mt-0.5 tracking-tight">Timeline updated with Google Calendar</p>
-            </div>
-            <button onClick={() => setShowToast(false)} className="text-zinc-600 hover:text-white transition-colors">
-              <X size={14} />
-            </button>
           </div>
         </div>
       )}
 
-      {/* Header Section */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-6">
+      {/* Main Page Header */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div>
-          <h2 className="text-5xl font-black italic tracking-tighter uppercase leading-none mb-4">
-            Platform <span className="text-orange-600">Timeline</span>
+          <h2 className="text-3xl md:text-4xl font-black italic tracking-tighter uppercase leading-none">
+            Schedule <span className="text-orange-600">Timeline</span>
           </h2>
-          <div className="flex items-center gap-4">
-            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-[0.4em] flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-orange-600 animate-pulse" />
-              Real-time Node Monitoring
-            </p>
-            <button 
-              onClick={handleGoogleSync}
-              disabled={isSyncing}
-              className="flex items-center gap-2 text-[9px] font-black uppercase text-zinc-400 hover:text-orange-500 transition-colors disabled:opacity-50"
-            >
-              <RefreshCw size={12} className={isSyncing ? "animate-spin text-orange-600" : ""} />
-              {isSyncing ? "Syncing G-Cal..." : "Sync with Google"}
-            </button>
-          </div>
+          <button 
+            onClick={() => { setIsSyncing(true); setTimeout(() => { setIsSyncing(false); setShowToast(true); }, 1500); }}
+            className="mt-3 flex items-center gap-2 text-[9px] font-black uppercase text-zinc-400 hover:text-orange-500 transition-colors"
+          >
+            <RefreshCw size={12} className={isSyncing ? "animate-spin text-orange-600" : ""} />
+            {isSyncing ? "Syncing..." : "Sync Google Calendar"}
+          </button>
         </div>
         
-        <div className="flex gap-4">
-          <button 
-            onClick={exportToCSV}
-            className="px-6 py-3 bg-zinc-900 border border-zinc-800 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-800 transition-all flex items-center gap-2"
-          >
-            <Download size={14} /> Export CSV
+        <div className="flex gap-2 w-full lg:w-auto">
+          <button onClick={exportToCSV} className="flex-1 lg:flex-none px-5 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2">
+            <Download size={12} /> Export
           </button>
-          <button className="px-6 py-3 bg-orange-600 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-orange-900/20 hover:scale-105 transition-transform">
-            <Plus size={14} /> New Event
+          <button className="flex-1 lg:flex-none px-5 py-2.5 bg-orange-600 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2">
+            <Plus size={12} /> New Event
           </button>
         </div>
       </div>
 
-      {/* Analytics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <MetricCard label="Total Bookings" value="44,115" change="+12.5%" icon={<CalendarIcon size={16}/>} />
-        <MetricCard label="Avg. Attendance" value="88.4%" change="+3.1%" icon={<TrendingUp size={16}/>} />
-        <MetricCard label="Active Nodes" value="48" change="Stable" icon={<div className="text-emerald-500">◈</div>} />
-        <MetricCard label="Uptime" value="99.99%" change="Live" icon={<Clock size={16}/>} />
+      {/* Analytics - Compact */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard label="Live Events" value={events.length.toString()} change="Realtime" icon={<CalendarIcon size={14}/>} />
+        <MetricCard label="Uptime" value="99.9%" change="Live" icon={<Clock size={14}/>} />
+        <MetricCard label="Nodes" value="48" change="Stable" icon={<TrendingUp size={14}/>} />
+        <MetricCard label="Load" value="14ms" change="Low" icon={<div className="text-emerald-500 text-xs">◈</div>} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Main Calendar View */}
-        <div className="lg:col-span-8">
-          <div className="bg-zinc-900/10 border border-zinc-800/50 rounded-[2.5rem] p-8 backdrop-blur-xl shadow-2xl">
-            <div className="flex items-center justify-between mb-10">
-              <div className="flex items-center gap-4">
-                <h3 className="text-2xl font-black uppercase tracking-tighter italic">May 2026</h3>
-                <span className="px-3 py-1 bg-zinc-800 rounded-full text-[9px] font-black text-zinc-500 uppercase tracking-widest">Today: May 23</span>
-              </div>
-              <div className="flex bg-black p-1 rounded-xl border border-zinc-800">
-                <button className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"><ChevronLeft size={18}/></button>
-                <button className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"><ChevronRight size={18}/></button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-7 gap-3">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                <div key={day} className="text-center text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600 pb-4">
-                  {day}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        {/* Calendar Section - Responsive & Non-Scrollable */}
+        <div className="xl:col-span-8">
+          <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[1.5rem] p-4 md:p-6 backdrop-blur-xl">
+            
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg md:text-2xl font-black uppercase italic tracking-tighter">
+                  {monthName} <span className="text-orange-600">{year}</span>
+                </h3>
+                <div className="flex bg-black p-1 rounded-lg border border-zinc-800">
+                  <button onClick={prevMonth} className="p-1.5 hover:bg-zinc-800 rounded transition-colors"><ChevronLeft size={16}/></button>
+                  <button onClick={nextMonth} className="p-1.5 hover:bg-zinc-800 rounded transition-colors"><ChevronRight size={16}/></button>
                 </div>
-              ))}
-              {Array.from({ length: 35 }).map((_, i) => {
-                const dayNum = i - 3; 
-                const isToday = dayNum === 23;
-                return (
-                  <div key={i} className={`min-h-27.5 rounded-2xl border transition-all p-3 group relative
-                    ${dayNum > 0 && dayNum <= 31 ? 'bg-zinc-900/30 border-zinc-800/50 hover:border-orange-600/50' : 'opacity-0 pointer-events-none'}
-                    ${isToday ? 'bg-orange-600/5 border-orange-600/50' : ''}
-                  `}>
-                    <span className={`text-xs font-black ${isToday ? 'text-orange-600' : 'text-zinc-500'}`}>
-                      {dayNum > 0 ? (dayNum < 10 ? `0${dayNum}` : dayNum) : ''}
-                    </span>
-                    
-                    {dayNum === 23 && (
-                      <div className="mt-2 space-y-1">
-                        <div className="h-1.5 w-full bg-orange-600 rounded-full shadow-lg shadow-orange-900/50" />
-                        <p className="text-[8px] font-black uppercase text-white truncate">Global Summit</p>
-                        <p className="text-[7px] font-bold text-zinc-500 uppercase">Alpha IT</p>
-                      </div>
-                    )}
-                    {dayNum === 15 && (
-                      <div className="mt-2 flex flex-col gap-1">
-                        <div className="h-1.5 w-8 bg-zinc-700 rounded-full" />
-                        <div className="h-1 w-12 bg-zinc-800 rounded-full" />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="h-[2px] w-6 bg-orange-600" />
+                <span className="text-[10px] font-[1000] uppercase tracking-[0.2em] text-white">
+                  Today is {today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </span>
+                <div className="h-[1px] flex-1 bg-gradient-to-r from-zinc-800 to-transparent" />
+              </div>
+            </div>
+
+            {/* Grid Container - w-full ensures no scroll */}
+            <div className="w-full">
+              <div className="grid grid-cols-7 gap-1 md:gap-2">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                  <div key={day} className="text-center text-[9px] font-black uppercase text-zinc-600 pb-2">{day}</div>
+                ))}
+                
+                {Array.from({ length: 35 }).map((_, i) => {
+                  const dayNum = i - firstDayOfMonth + 1;
+                  const isValidDay = dayNum > 0 && dayNum <= daysInMonth;
+                  const dateString = `${year}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                  
+                  const isToday = isValidDay && dateString === todayDateString;
+                  const dayEvents = events.filter(e => e.date === dateString);
+
+                  return (
+                    <div key={i} className={`min-h-[70px] md:min-h-[90px] rounded-lg border p-1.5 transition-all group relative
+                      ${isValidDay ? 'bg-zinc-900/40 border-zinc-800/50' : 'opacity-0 pointer-events-none'}
+                      ${isToday ? 'border-orange-600 ring-1 ring-orange-600/40 bg-orange-600/5' : 'hover:border-zinc-700'}
+                    `}>
+                      {isValidDay && (
+                        <>
+                          <span className={`text-[10px] font-black ${isToday ? 'text-orange-500' : 'text-zinc-500'} group-hover:text-white`}>
+                            {dayNum}
+                          </span>
+                          <div className="mt-1 space-y-1">
+                            {dayEvents.slice(0, 2).map((event, idx) => (
+                              <button 
+                                key={idx} 
+                                onClick={() => router.push(`/admin/events/${event.id}`)}
+                                className="w-full text-left bg-orange-600/10 border-l-2 border-orange-600 p-0.5 rounded-sm transition-colors"
+                              >
+                                <p className="text-[7px] font-black uppercase truncate text-white">{event.title}</p>
+                              </button>
+                            ))}
+                            {dayEvents.length > 2 && (
+                              <p className="text-[6px] font-bold text-zinc-600 text-center">+{dayEvents.length - 2} more</p>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Sidebar Analytics */}
-        <div className="lg:col-span-4 space-y-6">
-          <div className="bg-zinc-900/10 border border-zinc-800/50 rounded-[2.5rem] p-8 backdrop-blur-xl">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-8">Service Distribution</h3>
-            <div className="relative h-44 w-44 mx-auto mb-8 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90">
-                <circle cx="88" cy="88" r="75" stroke="#18181b" strokeWidth="12" fill="transparent" />
-                <circle cx="88" cy="88" r="75" stroke="#ea580c" strokeWidth="12" strokeDasharray="471" strokeDashoffset="150" strokeLinecap="round" fill="transparent" />
-              </svg>
-              <div className="absolute text-center">
-                <span className="text-3xl font-black italic tracking-tighter block">72%</span>
-                <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Node Load</span>
-              </div>
+        {/* Sidebar - Compact */}
+        <div className="xl:col-span-4 space-y-4">
+          <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[1.5rem] p-5">
+            <h3 className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-4">Service Health</h3>
+            <div className="space-y-3">
+               <CategoryRow label="Enterprise Nodes" percentage="64%" color="bg-orange-600" />
+               <CategoryRow label="Standard Nodes" percentage="36%" color="bg-zinc-700" />
             </div>
-            <div className="space-y-4">
-              <CategoryRow label="Enterprise Tier" percentage="64%" color="bg-orange-600" />
-              <CategoryRow label="Standard Tier" percentage="36%" color="bg-zinc-700" />
-            </div>
-          </div>
-
-          <div className="bg-zinc-900/10 border border-zinc-800/50 rounded-[2.5rem] p-8 backdrop-blur-xl">
-             <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-6">System Health</h3>
-             <div className="h-20 flex items-end gap-1 px-2">
-                {[40, 70, 45, 90, 65, 80, 50, 85, 100, 75].map((h, i) => (
-                  <div key={i} className="flex-1 bg-zinc-800 rounded-t-sm hover:bg-orange-600 transition-all duration-500" style={{ height: `${h}%` }} />
-                ))}
-             </div>
-             <div className="flex justify-between mt-4">
-                <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Latency: 14ms</p>
-                <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Optimal</p>
-             </div>
           </div>
         </div>
       </div>
@@ -197,13 +196,13 @@ export default function SuperAdminSchedule() {
 
 function MetricCard({ label, value, change, icon }: any) {
   return (
-    <div className="bg-zinc-900/20 border border-zinc-800/50 p-6 rounded-[2.5rem] hover:bg-zinc-800/40 transition-all group cursor-default">
-      <div className="flex justify-between items-start mb-4">
-        <div className="p-3 bg-black rounded-2xl text-zinc-500 border border-zinc-800/50 group-hover:text-orange-500 group-hover:border-orange-600/30 transition-all shadow-xl">{icon}</div>
-        <span className="text-[9px] font-black px-2 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg border border-emerald-500/20">{change}</span>
+    <div className="bg-zinc-900/30 border border-zinc-800/50 p-4 rounded-2xl hover:bg-zinc-800/40 transition-all">
+      <div className="flex justify-between items-center mb-2">
+        <div className="text-zinc-500">{icon}</div>
+        <span className="text-[7px] font-black px-1.5 py-0.5 bg-emerald-500/10 text-emerald-500 rounded border border-emerald-500/20">{change}</span>
       </div>
-      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600 leading-none mb-2">{label}</p>
-      <h4 className="text-3xl font-black italic tracking-tighter">{value}</h4>
+      <p className="text-[8px] font-black uppercase tracking-widest text-zinc-600 mb-0.5">{label}</p>
+      <h4 className="text-xl font-black italic tracking-tighter">{value}</h4>
     </div>
   );
 }
@@ -211,11 +210,11 @@ function MetricCard({ label, value, change, icon }: any) {
 function CategoryRow({ label, percentage, color }: any) {
   return (
     <div className="flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <div className={`h-1.5 w-1.5 rounded-full ${color} shadow-[0_0_8px_rgba(234,88,12,0.4)]`} />
-        <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">{label}</span>
+      <div className="flex items-center gap-2">
+        <div className={`h-1 w-1 rounded-full ${color}`} />
+        <span className="text-[8px] font-black text-zinc-500 uppercase">{label}</span>
       </div>
-      <span className="text-[9px] font-black text-white">{percentage}</span>
+      <span className="text-[8px] font-black">{percentage}</span>
     </div>
   );
 }

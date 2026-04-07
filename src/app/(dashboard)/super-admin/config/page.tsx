@@ -3,16 +3,11 @@
 import React, { useState, useEffect } from "react";
 import { 
   Shield, Zap, Globe, Database, 
-  Save, AlertTriangle, Cpu, Activity, Clock
+  Save, AlertTriangle, Cpu, Activity, Clock, Menu
 } from "lucide-react";
 import { db } from "@/lib/firebase"; 
 import { doc, writeBatch, serverTimestamp } from "firebase/firestore";
 
-/**
- * UPDATED CATEGORY_DATA: 
- * Included searchTags and description to match seed script and prevent 
- * "cat.searchTags" undefined errors.
- */
 const CATEGORY_DATA = [
   { 
     id: "yoga-meditation", 
@@ -68,7 +63,6 @@ export default function ConfigPage() {
     { id: 2, time: "01:20 PM", action: "Node Migration", status: "COMPLETED", user: "System_Kernel" }
   ]);
 
-  // Infrastructure heartbeat simulation
   useEffect(() => {
     const interval = setInterval(() => {
       setLatency(Math.floor(Math.random() * (25 - 10 + 1) + 10));
@@ -76,10 +70,6 @@ export default function ConfigPage() {
     return () => clearInterval(interval);
   }, []);
 
-  /**
-   * SEED LOGIC:
-   * Uses the updated CATEGORY_DATA to ensure all fields exist before writing to Firestore.
-   */
   const handleDeploy = async () => {
     setIsSaving(true);
     const batch = writeBatch(db);
@@ -93,7 +83,6 @@ export default function ConfigPage() {
           description: cat.description,
           isActive: true,
           updatedAt: serverTimestamp(),
-          // Accessing verified searchTags array
           searchTags: cat.searchTags, 
         });
       });
@@ -108,7 +97,6 @@ export default function ConfigPage() {
         user: "SuperAdmin_RA" 
       };
       setAuditLogs([newLog, ...auditLogs.slice(0, 4)]);
-      
       alert("System categories deployed to Firestore successfully!");
     } catch (error) {
       console.error("Deployment failed:", error);
@@ -119,14 +107,15 @@ export default function ConfigPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white p-8 font-sans">
-      {/* Header */}
-      <div className="flex justify-between items-end mb-12">
+    <div className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans">
+      
+      {/* Header - Stacked on mobile */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 md:mb-12 gap-6">
         <div>
-          <h2 className="text-5xl font-black italic tracking-tighter uppercase leading-none mb-4">
+          <h2 className="text-3xl md:text-5xl font-black italic tracking-tighter uppercase leading-none mb-3 md:mb-4">
             System <span className="text-orange-600">Config</span>
           </h2>
-          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-[0.4em] flex items-center gap-2">
+          <p className="text-[8px] md:text-[10px] text-zinc-500 font-bold uppercase tracking-[0.4em] flex items-center gap-2">
             <Cpu size={12} className="text-orange-600" />
             Kernel Version 4.0.2 // Eventra Core
           </p>
@@ -134,30 +123,31 @@ export default function ConfigPage() {
         <button 
           onClick={handleDeploy}
           disabled={isSaving}
-          className="px-8 py-4 bg-orange-600 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-orange-900/20 hover:scale-105 transition-all disabled:opacity-50"
+          className="w-full md:w-auto px-6 md:px-8 py-3 md:py-4 bg-orange-600 rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-orange-900/20 hover:scale-105 transition-all disabled:opacity-50"
         >
           {isSaving ? <Activity className="animate-spin" size={16} /> : <><Save size={16} /> Deploy Changes</>}
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Navigation */}
-        <div className="lg:col-span-3 space-y-2">
-          <ConfigTab id="general" label="Platform Engine" icon={<Globe size={18}/>} active={activeTab === "general"} onClick={setActiveTab} />
-          <ConfigTab id="security" label="Auth & Security" icon={<Shield size={18}/>} active={activeTab === "security"} onClick={setActiveTab} />
-          <ConfigTab id="database" label="Firestore Nodes" icon={<Database size={18}/>} active={activeTab === "database"} onClick={setActiveTab} />
-          <ConfigTab id="api" label="API Orchestration" icon={<Zap size={18}/>} active={activeTab === "api"} onClick={setActiveTab} />
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
+        
+        {/* Navigation - Horizontal scroll on small screens, vertical on large */}
+        <div className="lg:col-span-3 flex lg:flex-col gap-2 overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
+          <ConfigTab id="general" label="Engine" icon={<Globe size={18}/>} active={activeTab === "general"} onClick={setActiveTab} />
+          <ConfigTab id="security" label="Auth" icon={<Shield size={18}/>} active={activeTab === "security"} onClick={setActiveTab} />
+          <ConfigTab id="database" label="Nodes" icon={<Database size={18}/>} active={activeTab === "database"} onClick={setActiveTab} />
+          <ConfigTab id="api" label="API" icon={<Zap size={18}/>} active={activeTab === "api"} onClick={setActiveTab} />
         </div>
 
         {/* Content Area */}
         <div className="lg:col-span-9 space-y-6">
-          <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[2.5rem] p-10 backdrop-blur-xl min-h-[500px]">
+          <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-2xl md:rounded-[2.5rem] p-6 md:p-10 backdrop-blur-xl min-h-[400px]">
             
             {activeTab === "general" && (
               <div className="space-y-8 animate-in fade-in duration-500">
                 <section>
-                  <h3 className="text-xl font-black italic tracking-tight mb-6 uppercase">Global Directives</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <h3 className="text-lg md:text-xl font-black italic tracking-tight mb-6 uppercase">Global Directives</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <ConfigToggle 
                       title="Maintenance Mode" 
                       desc="Redirect all traffic to a 503 status page globally." 
@@ -165,7 +155,7 @@ export default function ConfigPage() {
                       onToggle={() => setConfig({...config, maintenanceMode: !config.maintenanceMode})}
                     />
                     <ConfigToggle 
-                      title="New Tenant Registration" 
+                      title="Tenant Reg" 
                       desc="Allow new organizations to create accounts." 
                       enabled={config.newRegistration}
                       onToggle={() => setConfig({...config, newRegistration: !config.newRegistration})}
@@ -174,7 +164,7 @@ export default function ConfigPage() {
                 </section>
                 <hr className="border-zinc-800/50" />
                 <section>
-                  <h3 className="text-xl font-black italic tracking-tight mb-6 uppercase">Real-Time Audit Logs</h3>
+                  <h3 className="text-lg md:text-xl font-black italic tracking-tight mb-6 uppercase">Real-Time Audit Logs</h3>
                   <div className="space-y-3">
                     {auditLogs.map(log => (
                       <AuditEntry key={log.id} {...log} />
@@ -186,21 +176,21 @@ export default function ConfigPage() {
 
             {activeTab === "security" && (
               <div className="space-y-8 animate-in fade-in duration-500">
-                <h3 className="text-xl font-black italic tracking-tight uppercase">Permission Matrix</h3>
-                <div className="overflow-hidden border border-zinc-800 rounded-2xl bg-black/40">
-                  <table className="w-full text-left text-xs">
+                <h3 className="text-lg md:text-xl font-black italic tracking-tight uppercase">Permission Matrix</h3>
+                <div className="overflow-x-auto border border-zinc-800 rounded-2xl bg-black/40">
+                  <table className="w-full text-left text-[10px] md:text-xs min-w-[400px]">
                     <thead>
                       <tr className="border-b border-zinc-800 bg-zinc-900/50">
                         <th className="p-4 font-black uppercase text-zinc-500">Feature Node</th>
-                        <th className="p-4 font-black uppercase text-orange-600">Super Admin</th>
-                        <th className="p-4 font-black uppercase text-zinc-300">Org Admin</th>
-                        <th className="p-4 font-black uppercase text-zinc-300">User</th>
+                        <th className="p-4 font-black uppercase text-orange-600 text-center">Super</th>
+                        <th className="p-4 font-black uppercase text-zinc-300 text-center">Org</th>
+                        <th className="p-4 font-black uppercase text-zinc-300 text-center">User</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-800/50">
                       <PermissionRow feature="System Config" roles={[true, false, false]} />
-                      <PermissionRow feature="Billing & Invoices" roles={[true, true, false]} />
-                      <PermissionRow feature="Event Management" roles={[true, true, true]} />
+                      <PermissionRow feature="Billing" roles={[true, true, false]} />
+                      <PermissionRow feature="Events" roles={[true, true, true]} />
                     </tbody>
                   </table>
                 </div>
@@ -209,17 +199,17 @@ export default function ConfigPage() {
 
             {activeTab === "database" && (
               <div className="space-y-8 animate-in fade-in duration-500">
-                <h3 className="text-xl font-black italic tracking-tight uppercase">Database Topology</h3>
-                <div className="p-6 bg-orange-600/10 border border-orange-600/30 rounded-2xl mb-4">
-                  <p className="text-xs font-bold text-orange-500 uppercase flex items-center gap-2">
+                <h3 className="text-lg md:text-xl font-black italic tracking-tight uppercase">Database Topology</h3>
+                <div className="p-4 md:p-6 bg-orange-600/10 border border-orange-600/30 rounded-xl md:rounded-2xl mb-4">
+                  <p className="text-[10px] md:text-xs font-bold text-orange-500 uppercase flex items-center gap-2">
                     <Database size={14} /> Ready to sync {CATEGORY_DATA.length} Global Categories
                   </p>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="p-6 bg-black/40 border border-zinc-800 rounded-2xl">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                    <div className="p-4 md:p-6 bg-black/40 border border-zinc-800 rounded-xl md:rounded-2xl">
                         <p className="text-[10px] font-black text-orange-500 uppercase mb-2">Primary Node</p>
-                        <p className="text-lg font-bold">us-central1 (Firestore)</p>
-                        <p className="text-xs text-zinc-500 mt-1">Multi-tenant root & sub-collections.</p>
+                        <p className="text-base md:text-lg font-bold">us-central1 (Firestore)</p>
+                        <p className="text-[10px] md:text-xs text-zinc-500 mt-1">Multi-tenant root structure.</p>
                     </div>
                 </div>
               </div>
@@ -227,31 +217,31 @@ export default function ConfigPage() {
 
             {activeTab === "api" && (
               <div className="space-y-8 animate-in fade-in duration-500">
-                <div className="bg-orange-600/5 border border-orange-600/20 p-6 rounded-2xl flex items-start gap-4">
-                  <AlertTriangle className="text-orange-500 shrink-0" />
-                  <p className="text-xs text-zinc-400 font-medium">
-                    <strong className="text-white">Kernel Warning:</strong> Tier: <span className="text-orange-500 uppercase font-black">Firebase Blaze</span>.
+                <div className="bg-orange-600/5 border border-orange-600/20 p-4 md:p-6 rounded-xl md:rounded-2xl flex items-start gap-4">
+                  <AlertTriangle className="text-orange-500 shrink-0" size={18} />
+                  <p className="text-[10px] md:text-xs text-zinc-400 font-medium leading-relaxed">
+                    <strong className="text-white">Kernel Warning:</strong> Tier: <span className="text-orange-500 uppercase font-black">Firebase Blaze</span>. Active scaling is enabled.
                   </p>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <MetricSelector label="Throughput" value={`${latency * 42} req/m`} />
-                  <MetricSelector label="Limit" value={config.apiLimit} />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                  <MetricSelector label="Throughput" value={`${latency * 42} r/m`} />
+                  <MetricSelector label="Limit" value={config.apiLimit.split(' ')[0]} />
                   <MetricSelector label="Latency" value={`${latency}ms`} />
                 </div>
               </div>
             )}
           </div>
 
-          {/* Status Footer */}
-          <div className="bg-zinc-900/10 border border-zinc-800/50 rounded-[2rem] p-6 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className={`h-12 w-12 bg-black rounded-xl border border-zinc-800 flex items-center justify-center ${latency > 20 ? 'text-orange-500' : 'text-emerald-500'}`}>
-                <Activity size={24} className={latency > 20 ? 'animate-pulse' : ''} />
+          {/* Status Footer - Improved padding for mobile */}
+          <div className="bg-zinc-900/10 border border-zinc-800/50 rounded-2xl md:rounded-[2rem] p-4 md:p-6 flex items-center justify-between">
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className={`h-10 w-10 md:h-12 md:w-12 bg-black rounded-lg md:rounded-xl border border-zinc-800 flex items-center justify-center ${latency > 20 ? 'text-orange-500' : 'text-emerald-500'}`}>
+                <Activity size={20} className={latency > 20 ? 'animate-pulse' : ''} />
               </div>
               <div>
-                <p className="text-[10px] font-black text-zinc-600 uppercase">Node-01 Health</p>
-                <p className="text-xs font-bold text-white uppercase italic">
-                  {latency > 20 ? "High Latency" : "All Systems Nominal"} // {latency}ms
+                <p className="text-[8px] md:text-[10px] font-black text-zinc-600 uppercase">Health Status</p>
+                <p className="text-[10px] md:text-xs font-bold text-white uppercase italic">
+                  {latency > 20 ? "High Load" : "Nominal"} // {latency}ms
                 </p>
               </div>
             </div>
@@ -262,15 +252,15 @@ export default function ConfigPage() {
   );
 }
 
-// --- SUB-COMPONENTS ---
+// --- REFINED SUB-COMPONENTS ---
 
 function PermissionRow({ feature, roles }: { feature: string, roles: boolean[] }) {
   return (
     <tr className="hover:bg-white/5 transition-colors">
-      <td className="p-4 font-bold text-zinc-400 italic">{feature}</td>
+      <td className="p-4 font-bold text-zinc-400 italic truncate max-w-[120px] md:max-w-none">{feature}</td>
       {roles.map((r, i) => (
-        <td key={i} className="p-4 text-center">
-          <div className={`h-2 w-2 rounded-full mx-auto ${r ? 'bg-orange-500 shadow-[0_0_8px_rgba(234,88,12,0.6)]' : 'bg-zinc-800'}`} />
+        <td key={i} className="p-4">
+          <div className={`h-2 w-2 rounded-full mx-auto ${r ? 'bg-orange-600 shadow-[0_0_8px_rgba(234,88,12,0.6)]' : 'bg-zinc-800'}`} />
         </td>
       ))}
     </tr>
@@ -279,15 +269,15 @@ function PermissionRow({ feature, roles }: { feature: string, roles: boolean[] }
 
 function AuditEntry({ time, action, status, user }: any) {
   return (
-    <div className="flex items-center justify-between p-4 bg-black/40 border border-zinc-800/50 rounded-xl hover:border-zinc-600 transition-all">
-      <div className="flex items-center gap-4">
-        <Clock size={14} className="text-zinc-600" />
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-black/40 border border-zinc-800/50 rounded-xl hover:border-zinc-700 transition-all gap-3">
+      <div className="flex items-center gap-3 md:gap-4">
+        <Clock size={14} className="text-zinc-600 shrink-0" />
         <div>
-          <p className="text-[10px] font-black text-white uppercase">{action}</p>
-          <p className="text-[9px] text-zinc-500 font-bold uppercase">{user} • {time}</p>
+          <p className="text-[9px] md:text-[10px] font-black text-white uppercase">{action}</p>
+          <p className="text-[8px] md:text-[9px] text-zinc-500 font-bold uppercase">{user} • {time}</p>
         </div>
       </div>
-      <span className="text-[9px] font-black px-3 py-1 bg-zinc-900 rounded-full border border-zinc-800 text-zinc-400">
+      <span className="text-[8px] md:text-[9px] font-black px-3 py-1 bg-zinc-900 rounded-full border border-zinc-800 text-zinc-400 self-end sm:self-auto">
         {status}
       </span>
     </div>
@@ -298,30 +288,30 @@ function ConfigTab({ label, icon, active, onClick, id }: any) {
   return (
     <button 
       onClick={() => onClick(id)}
-      className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-bold transition-all ${
+      className={`flex items-center gap-3 md:gap-4 px-5 md:px-6 py-3 md:py-4 rounded-xl md:rounded-2xl font-bold transition-all whitespace-nowrap min-w-max lg:min-w-0 lg:w-full ${
         active 
           ? "bg-orange-600 text-white shadow-xl shadow-orange-900/20" 
           : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-100"
       }`}
     >
-      {icon}
-      <span className="tracking-tight uppercase text-[11px] font-black">{label}</span>
+      <span className="shrink-0">{icon}</span>
+      <span className="tracking-tight uppercase text-[10px] md:text-[11px] font-black">{label}</span>
     </button>
   );
 }
 
 function ConfigToggle({ title, desc, enabled, onToggle }: any) {
   return (
-    <div className="p-6 bg-black/40 border border-zinc-800/50 rounded-2xl flex items-center justify-between hover:border-zinc-700 transition-all">
+    <div className="p-4 md:p-6 bg-black/40 border border-zinc-800/50 rounded-xl md:rounded-2xl flex items-center justify-between hover:border-zinc-700 transition-all gap-4">
       <div className="space-y-1">
-        <p className="text-[11px] font-black uppercase text-white tracking-wide italic">{title}</p>
-        <p className="text-[10px] text-zinc-600 font-medium leading-tight max-w-[200px]">{desc}</p>
+        <p className="text-[10px] md:text-[11px] font-black uppercase text-white tracking-wide italic">{title}</p>
+        <p className="text-[8px] md:text-[10px] text-zinc-600 font-medium leading-tight max-w-[140px] md:max-w-[200px]">{desc}</p>
       </div>
       <button 
         onClick={onToggle}
-        className={`w-10 h-5 rounded-full transition-all relative ${enabled ? 'bg-orange-600' : 'bg-zinc-800'}`}
+        className={`w-9 h-5 md:w-10 md:h-5 shrink-0 rounded-full transition-all relative ${enabled ? 'bg-orange-600' : 'bg-zinc-800'}`}
       >
-        <div className={`absolute top-1 h-3 w-3 bg-white rounded-full transition-all ${enabled ? 'left-6' : 'left-1'}`} />
+        <div className={`absolute top-1 h-3 w-3 bg-white rounded-full transition-all ${enabled ? 'left-5 md:left-6' : 'left-1'}`} />
       </button>
     </div>
   );
@@ -329,9 +319,9 @@ function ConfigToggle({ title, desc, enabled, onToggle }: any) {
 
 function MetricSelector({ label, value }: any) {
   return (
-    <div className="bg-black/40 border border-zinc-800 rounded-2xl p-6 text-center hover:border-orange-600/50 transition-all">
-      <p className="text-[9px] font-black text-zinc-600 uppercase mb-2 tracking-[0.2em]">{label}</p>
-      <p className="text-xl font-black italic text-white tracking-tighter">{value}</p>
+    <div className="bg-black/40 border border-zinc-800 rounded-xl md:rounded-2xl p-4 md:p-6 text-center hover:border-orange-600/50 transition-all">
+      <p className="text-[8px] md:text-[9px] font-black text-zinc-600 uppercase mb-2 tracking-[0.2em]">{label}</p>
+      <p className="text-lg md:text-xl font-black italic text-white tracking-tighter">{value}</p>
     </div>
   );
 }
