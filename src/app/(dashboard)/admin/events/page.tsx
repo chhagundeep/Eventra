@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation"; // Added for navigation
+import { useRouter } from "next/navigation";
 import { 
   Plus, Calendar, Loader2, Users, ChevronRight, Trash2
 } from "lucide-react";
@@ -45,31 +45,61 @@ function EventCard({ event, onManage, onDelete }: {
 
   return (
     <div className="group relative bg-zinc-950 border border-zinc-800 rounded-[2.5rem] overflow-hidden transition-all duration-500 hover:border-orange-500/40 hover:shadow-2xl flex flex-col h-full">
+      
+      {/* IMAGE PANEL SECTION */}
       <div className="h-52 relative overflow-hidden bg-zinc-900">
         {images.length > 0 ? (
-          images.map((img, idx) => (
-            <img
-              key={idx}
-              src={img}
-              alt=""
-              className={`absolute inset-0 w-full h-full object-cover transition-all duration-1000 ${
-                idx === currentIdx ? "opacity-50 scale-100" : "opacity-0 scale-110"
-              }`}
-            />
-          ))
+          <>
+            {images.map((img, idx) => (
+              <img
+                key={idx}
+                src={img}
+                alt=""
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
+                  idx === currentIdx ? "opacity-100" : "opacity-0"
+                }`}
+              />
+            ))}
+            
+            {/* SLIDESHOW INDICATOR DOTS */}
+            {images.length > 1 && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex gap-1.5 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full">
+                {images.map((_, dotIdx) => (
+                  <div 
+                    key={dotIdx}
+                    className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                      dotIdx === currentIdx 
+                        ? "bg-orange-500 w-3" 
+                        : "bg-zinc-500"
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-zinc-700 text-[10px] font-black uppercase">No Media Payload</div>
+          <div className="absolute inset-0 flex items-center justify-center text-zinc-700 text-[10px] font-black uppercase tracking-widest">
+            No Media Payload
+          </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent" />
-        <div className="absolute top-5 left-6 z-20 flex items-center gap-2">
-          <span className="px-3 py-1 bg-orange-600 text-[9px] font-black uppercase tracking-widest text-white rounded-lg">
+        
+        {/* VIGNETTE OVERLAY */}
+        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent opacity-60" />
+        
+        {/* CATEGORY BADGE */}
+        <div className="absolute top-5 left-6 z-20">
+          <span className="px-3 py-1 bg-orange-600 text-[9px] font-black uppercase tracking-widest text-white rounded-lg shadow-lg">
             {event.category || "General"}
           </span>
         </div>
       </div>
 
-      <div className="px-7 pb-8 -mt-10 relative z-10 space-y-4 bg-zinc-950 pt-2 flex-grow">
-        <h3 className="text-2xl font-black text-white uppercase tracking-tighter leading-none pt-2">{event.title}</h3>
+      {/* METADATA SECTION */}
+      <div className="px-7 pb-8 relative z-10 space-y-4 bg-zinc-950 flex-grow">
+        <h3 className="text-2xl font-black text-white uppercase tracking-tighter leading-none pt-6 line-clamp-1">
+          {event.title}
+        </h3>
+        
         <div className="grid grid-cols-3 gap-2 py-4 border-y border-zinc-900">
           <div className="space-y-1">
             <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Scheduled</p>
@@ -84,7 +114,11 @@ function EventCard({ event, onManage, onDelete }: {
             <p className="text-[10px] font-black text-white">Rs.{event.price || 0}</p>
           </div>
         </div>
-        <p className="text-zinc-500 text-xs italic font-medium line-clamp-2 leading-relaxed">"{event.description}"</p>
+
+        <p className="text-zinc-500 text-xs italic font-medium line-clamp-2 leading-relaxed h-8">
+          "{event.description}"
+        </p>
+
         <div className="flex items-center gap-3 pt-2">
           <button 
             onClick={() => onManage(event.id!)} 
@@ -105,7 +139,7 @@ function EventCard({ event, onManage, onDelete }: {
 }
 
 export default function EventsManagerPage() {
-  const router = useRouter(); // Initialize router
+  const router = useRouter();
   const { tenantId } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -190,6 +224,8 @@ export default function EventsManagerPage() {
 
   return (
     <div className="max-w-[1600px] mx-auto p-6 lg:p-10 space-y-10 animate-in fade-in duration-700">
+      
+      {/* HEADER STATISTICS */}
       <div className="flex flex-col lg:flex-row justify-between items-end lg:items-center gap-6">
         <div className="bg-zinc-900/50 border border-zinc-800 p-5 rounded-[2rem] flex items-center gap-5 min-w-[240px]">
           <div className="w-14 h-14 bg-orange-600/10 rounded-2xl flex items-center justify-center text-orange-500 border border-orange-600/20">
@@ -203,12 +239,13 @@ export default function EventsManagerPage() {
 
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="bg-orange-600 hover:bg-orange-500 text-white px-10 py-5 rounded-full font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all active:scale-95"
+          className="bg-orange-600 hover:bg-orange-500 text-white px-10 py-5 rounded-full font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all active:scale-95 shadow-lg shadow-orange-600/20"
         >
           <Plus size={20} strokeWidth={3} /> Deploy Event
         </button>
       </div>
 
+      {/* INFRASTRUCTURE GRID */}
       <div className="space-y-8">
         <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Event Infrastructure</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -216,13 +253,14 @@ export default function EventsManagerPage() {
             <EventCard 
               key={event.id} 
               event={event} 
-              onManage={(id) => router.push(`/admin/events/${id}`)} // Updated to push route
+              onManage={(id) => router.push(`/admin/events/${id}`)} 
               onDelete={handleDeleteRequest} 
             />
           ))}
         </div>
       </div>
 
+      {/* MODALS */}
       <CreateEventModal 
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); fetchEvents(); }}

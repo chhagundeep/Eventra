@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom"; // Add this
 import { X, Loader2, Upload, Trash2, ChevronDown } from "lucide-react";
 import { CldUploadWidget } from "next-cloudinary";
 import { createEvent, updateEvent } from "@/lib/eventService";
@@ -21,7 +22,6 @@ interface Category {
   name: string;
 }
 
-// --- HELPER: Extract Cloudinary Public ID from URL ---
 const extractIdFromUrl = (url: string) => {
   try {
     const parts = url.split('/upload/');
@@ -29,7 +29,6 @@ const extractIdFromUrl = (url: string) => {
     const pathWithExtension = parts[1].replace(/^v\d+\//, '');
     return pathWithExtension.split('.')[0];
   } catch (error) {
-    console.error("ID Extraction failed:", error);
     return null;
   }
 };
@@ -42,6 +41,7 @@ export default function CreateEventModal({
   initialData 
 }: CreateEventModalProps) {
   const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false); // To handle SSR/Client mismatch
   const [dbCategories, setDbCategories] = useState<Category[]>([]);
   const [formData, setFormData] = useState({
     title: "",
@@ -55,7 +55,18 @@ export default function CreateEventModal({
     status: "active" as "active" | "completed" | "cancelled"
   });
 
-  // 1. Fetch Dynamic Categories from Firestore
+  // Handle Mounting and Scroll Lock
+  useEffect(() => {
+    setMounted(true);
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => { document.body.style.overflow = "unset"; };
+  }, [isOpen]);
+
+  // Fetch Categories
   useEffect(() => {
     async function fetchCategories() {
       try {
@@ -67,7 +78,6 @@ export default function CreateEventModal({
         }));
         setDbCategories(cats);
         
-        // Default to first category if creating a new node
         if (!initialData && cats.length > 0 && !formData.category) {
           setFormData(prev => ({ ...prev, category: cats[0].id }));
         }
@@ -75,11 +85,10 @@ export default function CreateEventModal({
         console.error("Error fetching categories:", error);
       }
     }
-
     if (isOpen) fetchCategories();
   }, [isOpen, initialData]);
 
-  // 2. Sync Form with Initial Data (Edit Mode)
+  // Sync Form Data
   useEffect(() => {
     if (initialData && isOpen) {
       setFormData({
@@ -94,7 +103,6 @@ export default function CreateEventModal({
         status: initialData.status || "active"
       });
     } else if (!isOpen) {
-      // Reset form on close
       setFormData({ 
         title: "", description: "", date: "", 
         category: dbCategories[0]?.id || "", capacity: 20, price: 0, 
@@ -103,7 +111,8 @@ export default function CreateEventModal({
     }
   }, [initialData, isOpen, dbCategories]);
 
-  if (!isOpen) return null;
+  // Prevent rendering if not open or not on client
+  if (!isOpen || !mounted) return null;
 
   const handleNumberChange = (field: string, value: string) => {
     const num = value === "" ? 0 : Number(value);
@@ -123,10 +132,8 @@ export default function CreateEventModal({
     if (formData.images.length === 0) return alert("Upload at least one image.");
 
     setLoading(true);
-
     try {
       if (initialData?.id) {
-        // --- EDIT MODE: Cleanup removed images from Cloudinary ---
         const originalImages = initialData.images || [];
         const imagesToRemove = originalImages.filter(url => !formData.images.includes(url));
 
@@ -138,54 +145,58 @@ export default function CreateEventModal({
             body: JSON.stringify({ publicIds }),
           });
         }
-
         await updateEvent(tenantId, initialData.id, formData);
       } else {
-        // --- CREATE MODE ---
-        await createEvent(tenantId, {
-          ...formData,
-          createdAt: serverTimestamp(),
-        });
+        await createEvent(tenantId, { ...formData, createdAt: serverTimestamp() });
       }
       onClose();
     } catch (error) {
-      console.error("Submission Error:", error);
-      alert("Deployment failed. Check console.");
+      alert("Deployment failed.");
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
-      <div className="bg-zinc-950 border border-zinc-800 w-full max-w-4xl rounded-[3rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+  // RENDER PORTAL
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black/95 backdrop-blur-md" 
+        onClick={onClose} 
+      />
+      
+      {/* Modal Container */}
+      <div className="relative bg-[#09090b] border border-white/10 w-full max-w-4xl rounded-[2.5rem] overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300">
         
         {/* Header */}
-        <div className="p-8 border-b border-zinc-900 flex justify-between items-center bg-zinc-900/30">
+        <div className="p-6 md:p-8 border-b border-white/5 flex justify-between items-center bg-zinc-900/20 flex-shrink-0">
           <div>
-            <h2 className="text-2xl font-black text-white uppercase tracking-tighter italic">
-              {initialData ? "Update Event Node" : "New Event Node"}
+            <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tighter italic leading-none">
+              {initialData ? "Update Event Node" : "Deploy New Event"}
             </h2>
-            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">
-              {initialData ? `Modifying Node: ${initialData.id?.slice(0,8)}` : "Configure Multi-Tenant Node Deployment"}
+            <p className="text-orange-600/70 text-[9px] font-black uppercase tracking-[0.3em] mt-2">
+              Organization Node: {tenantId.slice(0, 12)}
             </p>
           </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white p-2 hover:bg-zinc-800 rounded-full transition-colors">
-            <X size={24} />
+          <button onClick={onClose} className="text-zinc-500 hover:text-white p-2 hover:bg-white/5 rounded-full transition-all">
+            <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-            
-            {/* Left Column */}
-            <div className="space-y-5">
+        {/* Form Body */}
+        <form 
+          id="event-form"
+          onSubmit={handleSubmit} 
+          className="flex-1 min-h-0 p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar"
+        >
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+            <div className="space-y-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-2">Node Title</label>
+                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Event Title</label>
                 <input 
                   required 
-                  placeholder="e.g. Yoga For All"
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-5 py-4 text-white focus:border-orange-600 outline-none transition-all"
+                  className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl px-5 py-4 text-white focus:border-orange-600 outline-none"
                   value={formData.title}
                   onChange={(e) => setFormData({...formData, title: e.target.value})}
                 />
@@ -193,10 +204,10 @@ export default function CreateEventModal({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-2">Category</label>
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Category</label>
                   <div className="relative">
                     <select 
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-5 py-4 text-white appearance-none cursor-pointer focus:border-orange-600 outline-none transition-all"
+                      className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl px-5 py-4 text-white appearance-none cursor-pointer focus:border-orange-600 outline-none"
                       value={formData.category}
                       onChange={(e) => setFormData({...formData, category: e.target.value})}
                     >
@@ -204,90 +215,99 @@ export default function CreateEventModal({
                         <option key={cat.id} value={cat.id} className="bg-zinc-950">{cat.name}</option>
                       ))}
                     </select>
-                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" size={16} />
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" size={14} />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-2">Trainer</label>
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Trainer</label>
                   <div className="relative">
                     <select 
                       required
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-5 py-4 text-white appearance-none cursor-pointer focus:border-orange-600 outline-none transition-all"
+                      className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl px-5 py-4 text-white appearance-none cursor-pointer focus:border-orange-600 outline-none"
                       value={formData.trainerId}
                       onChange={(e) => setFormData({...formData, trainerId: e.target.value})}
                     >
-                      <option value="" disabled>Select</option>
+                      <option value="" disabled>Choose</option>
                       {trainers.map(t => <option key={t.id} value={t.id} className="bg-zinc-950">{t.name}</option>)}
                     </select>
-                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" size={16} />
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" size={14} />
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-2">Price (Rs.)</label>
-                  <input type="number" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-5 py-4 text-white focus:border-orange-600 outline-none" value={formData.price || ""} onChange={(e) => handleNumberChange("price", e.target.value)} />
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Price (Rs.)</label>
+                  <input type="number" className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl px-5 py-4 text-white focus:border-orange-600 outline-none" value={formData.price || ""} onChange={(e) => handleNumberChange("price", e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-2">Capacity</label>
-                  <input type="number" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-5 py-4 text-white focus:border-orange-600 outline-none" value={formData.capacity} onChange={(e) => handleNumberChange("capacity", e.target.value)} />
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Capacity</label>
+                  <input type="number" className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl px-5 py-4 text-white focus:border-orange-600 outline-none" value={formData.capacity} onChange={(e) => handleNumberChange("capacity", e.target.value)} />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-2">Event Date</label>
-                <input type="date" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-5 py-4 text-white [color-scheme:dark] outline-none focus:border-orange-600" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} />
+                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Schedule Date</label>
+                <input type="date" required className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl px-5 py-4 text-white [color-scheme:dark] outline-none" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} />
               </div>
             </div>
 
-            {/* Right Column */}
-            <div className="space-y-5">
-              <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-2">Media Assets ({formData.images.length}/4)</label>
-              <div className="grid grid-cols-2 gap-3">
-                {formData.images.map((url, index) => (
-                  <div key={index} className="relative aspect-square rounded-[1.5rem] overflow-hidden border border-zinc-800 group bg-zinc-900">
-                    <img src={url} className="w-full h-full object-cover" alt="Preview" />
-                    <button type="button" onClick={() => removeImage(index)} className="absolute top-2 right-2 p-2 bg-red-600 text-white rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-                {formData.images.length < 4 && (
-                  <CldUploadWidget 
-                    uploadPreset={process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET}
-                    onSuccess={(result: any) => {
-                      if (result.info?.secure_url) {
-                        setFormData(prev => ({ ...prev, images: [...prev.images, result.info.secure_url] }));
-                      }
-                    }}
-                  >
-                    {({ open }) => (
-                      <button type="button" onClick={() => open()} className="aspect-square border-2 border-dashed border-zinc-800 rounded-[1.5rem] bg-zinc-900/50 flex flex-col items-center justify-center hover:border-orange-600 hover:bg-zinc-900 transition-all group">
-                        <Upload className="text-zinc-700 group-hover:text-orange-600" size={24} />
-                        <span className="text-[8px] text-zinc-600 font-black mt-2 group-hover:text-orange-600 uppercase">Add Media</span>
-                      </button>
-                    )}
-                  </CldUploadWidget>
-                )}
-              </div>
+            <div className="space-y-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-2">Description</label>
+                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Media ({formData.images.length}/4)</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {formData.images.map((url, index) => (
+                    <div key={index} className="relative aspect-video rounded-2xl overflow-hidden border border-white/5 group bg-zinc-900">
+                      <img src={url} className="w-full h-full object-cover" alt="Preview" />
+                      <button type="button" onClick={() => removeImage(index)} className="absolute inset-0 flex items-center justify-center bg-red-600/80 text-white opacity-0 group-hover:opacity-100">
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  ))}
+                  {formData.images.length < 4 && (
+                    <CldUploadWidget 
+                      uploadPreset={process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET}
+                      onSuccess={(result: any) => {
+                        if (result.info?.secure_url) {
+                          setFormData(prev => ({ ...prev, images: [...prev.images, result.info.secure_url] }));
+                        }
+                      }}
+                    >
+                      {({ open }) => (
+                        <button type="button" onClick={() => open()} className="aspect-video border-2 border-dashed border-white/5 rounded-2xl bg-white/5 flex flex-col items-center justify-center hover:border-orange-600 transition-all">
+                          <Upload className="text-zinc-600" size={20} />
+                        </button>
+                      )}
+                    </CldUploadWidget>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Description</label>
                 <textarea 
-                  placeholder="Describe the event node objectives..."
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-5 py-4 text-white h-[120px] resize-none focus:border-orange-600 outline-none" 
+                  className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl px-5 py-4 text-white h-[120px] resize-none outline-none" 
                   value={formData.description} 
                   onChange={(e) => setFormData({...formData, description: e.target.value})} 
                 />
               </div>
             </div>
           </div>
-
-          <button type="submit" disabled={loading} className="w-full bg-orange-600 hover:bg-orange-500 py-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.3em] text-white transition-all shadow-xl shadow-orange-900/20 disabled:opacity-50">
-            {loading ? <Loader2 className="animate-spin mx-auto" /> : (initialData ? "Update Event Node" : "Deploy Event Node")}
-          </button>
         </form>
+
+        {/* Footer */}
+        <div className="p-6 md:p-8 bg-zinc-900/30 border-t border-white/5 flex-shrink-0">
+          <button 
+            form="event-form"
+            type="submit" 
+            disabled={loading} 
+            className="w-full bg-orange-600 hover:bg-orange-500 py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] text-white transition-all flex items-center justify-center gap-3"
+          >
+            {loading ? <Loader2 className="animate-spin" size={18} /> : (initialData ? "Apply Changes" : "Deploy Event")}
+          </button>
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body // This target ensures it's at the root of the page
   );
 }

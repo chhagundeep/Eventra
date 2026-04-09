@@ -108,13 +108,20 @@ match /trainers/{trainerId} {
       /* -------- EVENTS -------- */
       match /events/{eventId} {
         allow read: if true;
-        allow create: if (isAdmin() || isTrainer() || isSuperAdmin()) && belongsToTenant(tenantId);
-        allow update, delete: if (isAdmin() || isSuperAdmin()) && belongsToTenant(tenantId);
+
+        // Allowing Super Admin globally OR (Admin/Trainer/SuperAdmin matching the tenant)
+        allow create: if isSuperAdmin() || 
+          ((isAdmin() || isTrainer()) && belongsToTenant(tenantId));
+
+        // Allowing Super Admin globally OR (Admin matching the tenant)
+        allow update, delete: if isSuperAdmin() || 
+          (isAdmin() && belongsToTenant(tenantId));
 
         /* -------- SLOTS -------- */
         match /slots/{slotId} {
           allow read: if true;
-          allow create, update, delete: if (isAdmin() || isTrainer() || isSuperAdmin()) && belongsToTenant(tenantId);
+          allow create, update, delete: if isSuperAdmin() || 
+            ((isAdmin() || isTrainer()) && belongsToTenant(tenantId));
         }
       }
 
