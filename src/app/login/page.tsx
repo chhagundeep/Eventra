@@ -9,6 +9,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
 
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -57,15 +58,22 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/60 to-transparent z-0" />
 
         <motion.div
-          initial={{ x: -20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="relative z-10 flex items-center gap-4"
+        initial={{ x: -20, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ delay: 0.5 }}
+        className="relative z-10 flex items-center gap-4"
         >
-          <div className="h-12 w-12 bg-orange-600 rounded-2xl flex items-center justify-center font-black text-white text-2xl shadow-orange-900/40 shadow-2xl">
-            E
+          <div className="h-12 w-12 rounded-2xl overflow-hidden shadow-orange-900/40 shadow-2xl">
+          <Image
+          src="/logo.png"
+          alt="Eventra Logo"
+          width={48}
+          height={48}
+          className="object-contain"   
+          priority                   
+          />
           </div>
-          <span className="text-3xl font-black tracking-tighter text-white">Eventra</span>
+          <span className="text-3xl font-black tracking-tighter italic text-white">Eventra</span>
         </motion.div>
 
         <motion.div
