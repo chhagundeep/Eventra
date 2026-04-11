@@ -4,7 +4,8 @@ import React from "react";
 import { 
   LayoutDashboard, Building2, Users, Calendar, 
   Settings, LogOut, Zap, X, GraduationCap, 
-  ClipboardList, Search, UserCircle 
+  Search, UserCircle, Activity,
+  ListChecks, UserCheck, History
 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
@@ -25,9 +26,12 @@ const ROLE_MENUS = {
     { name: "Events Manager", icon: Calendar, path: "/admin/events" },
   ],
   "trainer": [
-    { name: "My Schedule", icon: Calendar, path: "/trainer/schedule" },
-    { name: "Attendance", icon: ClipboardList, path: "/trainer/attendance" },
-    { name: "Clients", icon: Users, path: "/trainer/clients" },
+    { name: "Active Sessions", icon: Activity, path: "/trainer" },
+    { name: "Active Users", icon: UserCheck, path: "/trainer/active-users" },
+    { name: "User Registry", icon: History, path: "/trainer/registry" },
+    { name: "Operational Slots", icon: Zap, path: "/trainer/slots" },
+    { name: "Session Calendar", icon: Calendar, path: "/trainer/schedule" },
+    { name: "Bookings", icon: ListChecks, path: "/trainer/bookings" },
   ],
   "user": [
     { name: "Explore Events", icon: Search, path: "/user/explore" },

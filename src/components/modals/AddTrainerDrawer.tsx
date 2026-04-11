@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { X, Upload, Loader2, CheckCircle2, Copy, Check, Tag } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db, auth } from "@/lib/firebase";
-import { collection, addDoc, getDocs, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 
 const generateTempPassword = () => {
@@ -45,7 +45,6 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess }: AddTrai
   const [generatedPass, setGeneratedPass] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   
-  // State for fetching global categories from root collection
   const [availableCategories, setAvailableCategories] = useState<{id: string, name: string}[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
@@ -55,7 +54,6 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess }: AddTrai
     phone: "",
   });
 
-  // Fetch categories seeded in the root 'categories' collection
   useEffect(() => {
     const fetchCats = async () => {
       try {
@@ -104,33 +102,33 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess }: AddTrai
     try {
       let finalImgId = "sample_avatar";
       if (selectedFile) {
-        try {
-          finalImgId = await uploadToCloudinary(selectedFile);
-        } catch (err) {
-          console.error("Upload fallback used.");
-        }
+        finalImgId = await uploadToCloudinary(selectedFile);
       }
 
-      // References the hierarchical structure: tenants -> {id} -> trainers
-      const trainersRef = collection(db, "tenants", tenantId, "trainers");
-      
-      await addDoc(trainersRef, {
-        ...formData,
-        // String format for your Team Management Table display
-        specialization: selectedCategories.join(", "), 
-        // Array format for multi-tenant filtering logic
-        categories: selectedCategories, 
-        role: "trainer",
-        password: tempPassword,
-        imgId: finalImgId,
-        status: "Active",
-        tenantId: tenantId,
-        createdAt: serverTimestamp(),
-        createdBy: auth.currentUser?.uid,
+      // Updated API Call to include categories array and createdBy
+      const response = await fetch("/api/admin/create-trainer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...formData,
+          password: tempPassword,
+          tenantId,
+          specialization: selectedCategories.join(", "),
+          categories: selectedCategories, // Mandatory for your Firestore structure
+          imgId: finalImgId,
+          createdBy: auth.currentUser?.uid || "system_admin", // Tracks who added the trainer
+        }),
       });
 
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        throw new Error(data.error || "Failed to onboard staff");
+      }
+
       setGeneratedPass(tempPassword);
-    } catch (error) {
+    } catch (error: any) {
+      alert("Error: " + error.message);
       console.error("Error adding trainer:", error);
     } finally {
       setLoading(false);
@@ -161,7 +159,6 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess }: AddTrai
 
             {!generatedPass ? (
               <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 space-y-8 scrollbar-hide">
-                {/* Photo Upload */}
                 <div className="space-y-3">
                   <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1">Profile Photo</label>
                   <div className="relative h-32 w-full rounded-2xl border-2 border-dashed border-zinc-800 hover:border-orange-600 transition-all flex flex-col items-center justify-center overflow-hidden bg-zinc-900/20">
@@ -174,7 +171,6 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess }: AddTrai
                   </div>
                 </div>
 
-                {/* Dynamic Category Selection - Matching Interest Selection UI */}
                 <div className="space-y-4">
                   <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1 flex items-center gap-2">
                     <Tag size={12} className="text-orange-600" /> Assignment Categories
@@ -195,10 +191,9 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess }: AddTrai
                       </button>
                     ))}
                   </div>
-                  <p className="text-[9px] text-zinc-600 px-1 italic">* These will appear under 'Specialization' in your team list.</p>
+                  <p className="text-[9px] text-zinc-600 px-1 italic">* Selected specializations will be saved to your team list.</p>
                 </div>
 
-                {/* Standard Input Fields */}
                 <div className="grid gap-5">
                   {[
                     { label: "Full Name", key: "name", type: "text" },
