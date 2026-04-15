@@ -3,14 +3,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { 
-  Plus, Calendar, Loader2, Users, ChevronRight, Trash2
+  Plus, Calendar, Loader2, ChevronRight, Trash2
 } from "lucide-react";
 import CreateEventModal from "@/components/modals/CreateEventModal";
 import DeleteConfirmModal from "@/components/modals/DeleteConfirmModal";
 import { db } from "@/lib/firebase";
-import { collection, query, getDocs, orderBy, deleteDoc, doc } from "firebase/firestore";
+import { collection, query, getDocs, orderBy, deleteDoc, doc, onSnapshot } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
-import { EventraEvent } from "@/types";
+import { EventraEvent, Trainer } from "@/types";
+import toast from "react-hot-toast";
 
 // --- REFINED ID EXTRACTION ---
 const extractIdFromUrl = (url: string) => {
@@ -18,10 +19,8 @@ const extractIdFromUrl = (url: string) => {
     const parts = url.split('/upload/');
     if (parts.length < 2) return null;
     const pathWithExtension = parts[1].replace(/^v\d+\//, '');
-    const publicId = pathWithExtension.split('.')[0];
-    return publicId;
+    return pathWithExtension.split('.')[0];
   } catch (error) {
-    console.error("ID Extraction failed for URL:", url, error);
     return null;
   }
 };
@@ -61,16 +60,13 @@ function EventCard({ event, onManage, onDelete }: {
               />
             ))}
             
-            {/* SLIDESHOW INDICATOR DOTS */}
             {images.length > 1 && (
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex gap-1.5 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full">
                 {images.map((_, dotIdx) => (
                   <div 
                     key={dotIdx}
                     className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                      dotIdx === currentIdx 
-                        ? "bg-orange-500 w-3" 
-                        : "bg-zinc-500"
+                      dotIdx === currentIdx ? "bg-orange-500 w-3" : "bg-zinc-500"
                     }`}
                   />
                 ))}
@@ -83,10 +79,8 @@ function EventCard({ event, onManage, onDelete }: {
           </div>
         )}
         
-        {/* VIGNETTE OVERLAY */}
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent opacity-60" />
         
-        {/* CATEGORY BADGE */}
         <div className="absolute top-5 left-6 z-20">
           <span className="px-3 py-1 bg-orange-600 text-[9px] font-black uppercase tracking-widest text-white rounded-lg shadow-lg">
             {event.category || "General"}
@@ -141,42 +135,41 @@ function EventCard({ event, onManage, onDelete }: {
 export default function EventsManagerPage() {
   const router = useRouter();
   const { tenantId } = useAuth();
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<{id: string, title: string} | null>(null);
+  
   const [events, setEvents] = useState<EventraEvent[]>([]);
-  const [trainers, setTrainers] = useState<{ id: string; name: string }[]>([]);
+  const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchEvents = useCallback(async () => {
-    if (!tenantId) return;
-    try {
-      const eventsRef = collection(db, "tenants", tenantId, "events");
-      const q = query(eventsRef, orderBy("createdAt", "desc"));
-      const eventSnap = await getDocs(q);
-      setEvents(eventSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as EventraEvent[]);
-    } catch (error) { console.error(error); }
-  }, [tenantId]);
-
-  const fetchTrainers = useCallback(async () => {
-    if (!tenantId) return;
-    try {
-      const trainersRef = collection(db, "tenants", tenantId, "trainers");
-      const trainerSnap = await getDocs(trainersRef);
-      setTrainers(trainerSnap.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
-    } catch (error) { console.error(error); }
-  }, [tenantId]);
-
+  // 1. Unified Real-time Listener for Events & Trainers
   useEffect(() => {
     if (!tenantId) return;
-    const loadData = async () => {
-      setLoading(true);
-      await Promise.all([fetchEvents(), fetchTrainers()]);
+
+    setLoading(true);
+
+    // Sync Trainers
+    const trainersRef = collection(db, "tenants", tenantId, "trainers");
+    const unsubTrainers = onSnapshot(trainersRef, (snap) => {
+      setTrainers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Trainer)));
+    });
+
+    // Sync Events
+    const eventsRef = collection(db, "tenants", tenantId, "events");
+    const q = query(eventsRef, orderBy("createdAt", "desc"));
+    const unsubEvents = onSnapshot(q, (snap) => {
+      setEvents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as EventraEvent)));
       setLoading(false);
+    });
+
+    return () => {
+      unsubTrainers();
+      unsubEvents();
     };
-    loadData();
-  }, [tenantId, fetchEvents, fetchTrainers]);
+  }, [tenantId]);
 
   const handleDeleteRequest = (id: string, title: string) => {
     setEventToDelete({ id, title });
@@ -189,27 +182,29 @@ export default function EventsManagerPage() {
 
     try {
       const targetEvent = events.find(e => e.id === eventToDelete.id);
+      
+      // A. Cloudinary Purge
       if (targetEvent?.images && targetEvent.images.length > 0) {
-        const publicIds = targetEvent.images
-          .map(url => extractIdFromUrl(url))
-          .filter(id => id !== null) as string[];
-
-        await fetch("/api/admin/delete-image", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ publicIds }),
-        });
+        const publicIds = targetEvent.images.map(url => extractIdFromUrl(url)).filter(Boolean) as string[];
+        if (publicIds.length > 0) {
+          await fetch("/api/admin/delete-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ publicIds }),
+          });
+        }
       }
 
-      const tenantEventRef = doc(db, "tenants", tenantId, "events", eventToDelete.id);
-      const publicEventRef = doc(db, "publicEvents", eventToDelete.id);
-
-      await Promise.all([deleteDoc(tenantEventRef), deleteDoc(publicEventRef)]);
+      // B. Firestore Purge (Tenant + Public)
+      await Promise.all([
+        deleteDoc(doc(db, "tenants", tenantId, "events", eventToDelete.id)),
+        deleteDoc(doc(db, "publicEvents", eventToDelete.id))
+      ]);
       
-      setEvents(prev => prev.filter(e => e.id !== eventToDelete.id));
+      toast.success("Node successfully purged from infrastructure.");
       setIsDeleteModalOpen(false);
     } catch (error) {
-      console.error("Purge failed:", error);
+      toast.error("Purge protocol failed.");
     } finally {
       setIsDeleting(false);
       setEventToDelete(null);
@@ -232,7 +227,7 @@ export default function EventsManagerPage() {
             <Calendar size={28} />
           </div>
           <div>
-            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em]">Active Events</p>
+            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em]">Active Nodes</p>
             <p className="text-3xl font-black text-white">{events.length}</p>
           </div>
         </div>
@@ -241,7 +236,7 @@ export default function EventsManagerPage() {
           onClick={() => setIsModalOpen(true)}
           className="bg-orange-600 hover:bg-orange-500 text-white px-10 py-5 rounded-full font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all active:scale-95 shadow-lg shadow-orange-600/20"
         >
-          <Plus size={20} strokeWidth={3} /> Deploy Event
+          <Plus size={20} strokeWidth={3} /> Deploy Node
         </button>
       </div>
 
@@ -249,21 +244,27 @@ export default function EventsManagerPage() {
       <div className="space-y-8">
         <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Event Infrastructure</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {events.map((event) => (
-            <EventCard 
-              key={event.id} 
-              event={event} 
-              onManage={(id) => router.push(`/admin/events/${id}`)} 
-              onDelete={handleDeleteRequest} 
-            />
-          ))}
+          {events.length > 0 ? (
+            events.map((event) => (
+              <EventCard 
+                key={event.id} 
+                event={event} 
+                onManage={(id) => router.push(`/admin/events/${id}`)} 
+                onDelete={handleDeleteRequest} 
+              />
+            ))
+          ) : (
+            <div className="col-span-full py-20 text-center border-2 border-dashed border-zinc-900 rounded-[3rem]">
+              <p className="text-zinc-600 font-black uppercase tracking-widest text-sm">No Active Nodes Detected</p>
+            </div>
+          )}
         </div>
       </div>
 
       {/* MODALS */}
       <CreateEventModal 
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); fetchEvents(); }}
+        onClose={() => setIsModalOpen(false)}
         tenantId={tenantId || ""}
         trainers={trainers}
       />

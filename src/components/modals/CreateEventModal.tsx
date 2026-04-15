@@ -14,7 +14,7 @@ interface CreateEventModalProps {
   isOpen: boolean;
   onClose: () => void;
   tenantId: string;
-  trainers: Trainer[]; // Now uses the full Trainer type for better consistency
+  trainers: Trainer[];
   initialData?: EventraEvent | null;
 }
 
@@ -62,7 +62,7 @@ export default function CreateEventModal({
     return () => { document.body.style.overflow = "unset"; };
   }, [isOpen]);
 
-  // 1. Fetch Categories and handle initial selection
+  // 1. Fetch Categories
   useEffect(() => {
     async function fetchCategories() {
       try {
@@ -78,7 +78,6 @@ export default function CreateEventModal({
         })) as Category[];
         setDbCategories(cats);
         
-        // Auto-select first category only if creating new AND category isn't set yet
         if (!initialData && cats.length > 0 && !formData.category) {
           setFormData(prev => ({ ...prev, category: cats[0].id }));
         }
@@ -87,9 +86,9 @@ export default function CreateEventModal({
       }
     }
     if (isOpen) fetchCategories();
-  }, [isOpen]); // Removed initialData and formData.category from dependencies to prevent infinite loop
+  }, [isOpen]);
 
-  // 2. Optimized Form Initialization: Preserves data during state updates
+  // 2. Form Initialization
   useEffect(() => {
     if (!isOpen) return;
 
@@ -106,7 +105,6 @@ export default function CreateEventModal({
         status: initialData.status || "active"
       });
     } else {
-      // For NEW events, only set defaults for empty fields to avoid wiping user input
       setFormData(prev => ({
         ...prev,
         category: prev.category || (dbCategories.length > 0 ? dbCategories[0].id : ""),
@@ -137,6 +135,12 @@ export default function CreateEventModal({
 
     setLoading(true);
     try {
+      // INJECT tenantId for Firestore Rules validation
+      const submissionData = {
+        ...formData,
+        tenantId: tenantId
+      };
+
       if (initialData?.id) {
         const originalImages = initialData.images || [];
         const imagesToRemove = originalImages.filter(url => !formData.images.includes(url));
@@ -149,13 +153,27 @@ export default function CreateEventModal({
             body: JSON.stringify({ publicIds }),
           });
         }
-        await updateEvent(tenantId, initialData.id, formData);
+        await updateEvent(tenantId, initialData.id, submissionData);
         toast.success("Event node updated.");
       } else {
-        await createEvent(tenantId, { ...formData, createdAt: serverTimestamp() });
+        await createEvent(tenantId, { 
+          ...submissionData, 
+          createdAt: serverTimestamp() 
+        });
         toast.success("New event deployed.");
-        // Clear form after success if it's a new event
-        setFormData({ title: "", description: "", date: "", category: "", capacity: 20, price: 0, trainerId: "", images: [], status: "active" });
+        
+        // Reset form but keep IDs for next deployment
+        setFormData({ 
+          title: "", 
+          description: "", 
+          date: "", 
+          category: dbCategories[0]?.id || "", 
+          capacity: 20, 
+          price: 0, 
+          trainerId: trainers[0]?.id || "", 
+          images: [], 
+          status: "active" 
+        });
       }
       onClose();
     } catch (error) {
@@ -230,15 +248,9 @@ export default function CreateEventModal({
                       onChange={(e) => setFormData({...formData, trainerId: e.target.value})}
                     >
                       <option value="" disabled>Select Staff</option>
-                      {trainers.length > 0 ? (
-                        trainers.map((t) => (
-                          <option key={t.id} value={t.id} className="bg-zinc-950">
-                            {t.name} {/* Corrected: Now uses 'name' which matches our Trainer type */}
-                          </option>
-                        ))
-                      ) : (
-                        <option disabled className="bg-zinc-950 italic">No trainers found</option>
-                      )}
+                      {trainers.map((t) => (
+                        <option key={t.id} value={t.id} className="bg-zinc-950">{t.name}</option>
+                      ))}
                     </select>
                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" size={14} />
                   </div>
