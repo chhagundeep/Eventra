@@ -4,8 +4,8 @@ import React, { useState, useEffect } from "react";
 import { X, Upload, Loader2, CheckCircle2, Copy, Check, Tag } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db, auth } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
-import { useAuth } from "@/hooks/useAuth";
+import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
+import { Category } from "@/types";
 
 const generateTempPassword = () => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -28,25 +28,26 @@ const uploadToCloudinary = async (file: File) => {
 
   if (!res.ok) throw new Error("Cloudinary Upload Failed");
   const data = await res.json();
-  return data.public_id;
+  return data.secure_url;
 };
 
 interface AddTrainerDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  tenantId: string; // Add this prop to receive ID from params
 }
 
-export default function AddTrainerDrawer({ isOpen, onClose, onSuccess }: AddTrainerDrawerProps) {
-  const { tenantId } = useAuth();
+export default function AddTrainerDrawer({ isOpen, onClose, onSuccess, tenantId }: AddTrainerDrawerProps) {
+  // Removed useAuth hook dependency for tenantId to ensure it uses the URL param
   const [loading, setLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [generatedPass, setGeneratedPass] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   
-  const [availableCategories, setAvailableCategories] = useState<{id: string, name: string}[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -57,8 +58,13 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess }: AddTrai
   useEffect(() => {
     const fetchCats = async () => {
       try {
-        const snap = await getDocs(collection(db, "categories"));
-        const cats = snap.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
+        const q = query(
+          collection(db, "categories"), 
+          where("isActive", "==", true),
+          orderBy("name", "asc")
+        );
+        const snap = await getDocs(q);
+        const cats = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Category[];
         setAvailableCategories(cats);
       } catch (err) {
         console.error("Error loading categories:", err);
@@ -67,9 +73,11 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess }: AddTrai
     if (isOpen) fetchCats();
   }, [isOpen]);
 
-  const handleCategoryToggle = (catName: string) => {
-    setSelectedCategories(prev => 
-      prev.includes(catName) ? prev.filter(c => c !== catName) : [...prev, catName]
+  const handleCategoryToggle = (categoryId: string) => {
+    setSelectedCategoryIds(prev => 
+      prev.includes(categoryId) 
+        ? prev.filter(id => id !== categoryId) 
+        : [...prev, categoryId]
     );
   };
 
@@ -93,30 +101,32 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess }: AddTrai
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tenantId) return alert("No Tenant ID found.");
-    if (selectedCategories.length === 0) return alert("Please select at least one category.");
+    if (!tenantId) return alert("Critical Error: No Tenant ID provided from the organization view.");
+    if (selectedCategoryIds.length === 0) return alert("Please select at least one category.");
 
     setLoading(true);
     const tempPassword = generateTempPassword();
 
     try {
-      let finalImgId = "sample_avatar";
+      let finalImageUrl = ""; 
       if (selectedFile) {
-        finalImgId = await uploadToCloudinary(selectedFile);
+        finalImageUrl = await uploadToCloudinary(selectedFile);
       }
 
-      // Updated API Call to include categories array and createdBy
       const response = await fetch("/api/admin/create-trainer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...formData,
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
           password: tempPassword,
-          tenantId,
-          specialization: selectedCategories.join(", "),
-          categories: selectedCategories, // Mandatory for your Firestore structure
-          imgId: finalImgId,
-          createdBy: auth.currentUser?.uid || "system_admin", // Tracks who added the trainer
+          tenantId, 
+          specialties: selectedCategoryIds,
+          image: finalImageUrl,
+          role: "trainer",
+          status: "Active",
+          createdBy: auth.currentUser?.uid || "system_admin",
         }),
       });
 
@@ -139,7 +149,7 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess }: AddTrai
     setGeneratedPass(null);
     setImagePreview(null);
     setSelectedFile(null);
-    setSelectedCategories([]);
+    setSelectedCategoryIds([]);
     setFormData({ name: "", email: "", phone: "" });
     onSuccess();
     onClose();
@@ -150,9 +160,9 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess }: AddTrai
       {isOpen && (
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
-          <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} className="fixed inset-y-0 right-0 w-full max-w-[450px] bg-[#0a0a0a] border-l border-zinc-800 z-[101] flex flex-col">
+          <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} className="fixed inset-y-0 right-0 w-full max-w-[450px] bg-[#0a0a0a] border-l border-zinc-800 z-[101] flex flex-col shadow-2xl">
             
-            <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
+            <div className="p-6 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/50">
               <h2 className="text-xl font-black text-white italic uppercase tracking-tighter">Onboard Staff</h2>
               <button onClick={onClose} className="p-2 text-zinc-500 hover:text-white transition-colors"><X size={20} /></button>
             </div>
@@ -172,17 +182,22 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess }: AddTrai
                 </div>
 
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1 flex items-center gap-2">
-                    <Tag size={12} className="text-orange-600" /> Assignment Categories
-                  </label>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex items-center justify-between px-1">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                      <Tag size={12} className="text-orange-600" /> Assignment Categories
+                    </label>
+                    <span className="text-[10px] font-bold text-orange-600 uppercase tracking-tighter">
+                      {selectedCategoryIds.length} Selected
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 max-h-[200px] overflow-y-auto p-1 scrollbar-hide">
                     {availableCategories.map((cat) => (
                       <button
                         key={cat.id}
                         type="button"
-                        onClick={() => handleCategoryToggle(cat.name)}
+                        onClick={() => handleCategoryToggle(cat.id)}
                         className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all border ${
-                          selectedCategories.includes(cat.name)
+                          selectedCategoryIds.includes(cat.id)
                             ? "bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-900/20"
                             : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-600"
                         }`}
@@ -191,7 +206,6 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess }: AddTrai
                       </button>
                     ))}
                   </div>
-                  <p className="text-[9px] text-zinc-600 px-1 italic">* Selected specializations will be saved to your team list.</p>
                 </div>
 
                 <div className="grid gap-5">
@@ -214,7 +228,7 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess }: AddTrai
                 </div>
 
                 <div className="pt-4 pb-8">
-                  <button type="submit" disabled={loading} className="w-full bg-white text-black py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-orange-600 hover:text-white transition-all flex items-center justify-center gap-2">
+                  <button type="submit" disabled={loading} className="w-full bg-white text-black py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-orange-600 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                     {loading ? <Loader2 size={18} className="animate-spin" /> : "Authorize & Generate Access"}
                   </button>
                 </div>

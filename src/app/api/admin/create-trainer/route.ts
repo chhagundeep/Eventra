@@ -4,56 +4,73 @@ import admin from "firebase-admin";
 
 export async function POST(request: Request) {
   try {
-    // Destructure all incoming data from the AddTrainerDrawer
     const { 
       email, 
       password, 
       name, 
       phone, 
       tenantId, 
-      specialization, 
-      imgId, 
-      categories, 
+      image, 
+      specialties, 
       createdBy 
     } = await request.json();
 
-    // 1. Create the Actual Firebase Authentication Account
-    // This allows the trainer to log in using the generated TR- password
+    if (!tenantId) {
+      return NextResponse.json({ error: "Tenant ID is required for sub-collection isolation." }, { status: 400 });
+    }
+
+    // 1. Create the Firebase Auth Account
     const userRecord = await adminAuth.createUser({
       email,
       password,
       displayName: name,
     });
 
-    // 2. SAVE TO ROOT USERS COLLECTION
-    // This is what the login page and useAuth hook read to verify the 'trainer' role
-    await adminDb.collection("users").doc(userRecord.uid).set({
+    // 2. Set Custom Claims (Essential for Security Rules)
+    // This allows Firestore to verify the user belongs to this tenant without a DB lookup
+    await adminAuth.setCustomUserClaims(userRecord.uid, {
+      role: "trainer",
+      tenantId: tenantId,
+    });
+
+    const batch = adminDb.batch();
+
+    // 3. ROOT USERS COLLECTION (For Auth Mapping)
+    const userRef = adminDb.collection("users").doc(userRecord.uid);
+    batch.set(userRef, {
       uid: userRecord.uid,
       email,
       name,
       role: "trainer",
       tenantId,
-      tempPassword: password, // Stored so you can reference it if the trainer forgets
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // 3. SAVE TO TENANT SUB-COLLECTION
-    // Matches your screenshot exactly: includes categories array and ISO updatedAt string
-    await adminDb.collection("tenants").doc(tenantId).collection("trainers").doc(userRecord.uid).set({
+    // 4. TENANT SUB-COLLECTION (The isolated data)
+    // PATH: tenants/{tenantId}/trainers/{uid}
+    const trainerRef = adminDb
+      .collection("tenants")
+      .doc(tenantId)
+      .collection("trainers")
+      .doc(userRecord.uid);
+
+    batch.set(trainerRef, {
+      uid: userRecord.uid,
       name,
       email,
       phone,
-      specialization,
-      categories: categories || [], // Saves as the array seen in your screenshot
+      image,
+      categories: specialties || [], // Match the 'categories' field in your Types
       role: "trainer",
       status: "Active",
       tenantId,
-      imgId,
-      password: password,           // The TR-XXXX password visible in your Firestore
-      createdBy: createdBy || null, // The UID of the Admin who performed the onboarding
+      createdBy: createdBy || null,
+      password: password, // The TR-XXXX reference
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: new Date().toISOString(), // Standard ISO string for tracking updates
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    await batch.commit();
 
     return NextResponse.json({ success: true, uid: userRecord.uid });
   } catch (error: any) {

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom"; // Added for clean stacking
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, Trash2, X } from "lucide-react";
+import { AlertTriangle, Trash2 } from "lucide-react";
 
 interface DeleteModalProps {
   isOpen: boolean;
@@ -25,8 +26,19 @@ export default function DeleteModal({
   loading,
   isRestricted = false,
 }: DeleteModalProps) {
-  
-  // Close on Escape key
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => { document.body.style.overflow = "unset"; };
+  }, [isOpen]);
+
+  // Handle Escape Key
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !loading) onClose();
@@ -35,17 +47,19 @@ export default function DeleteModal({
     return () => window.removeEventListener("keydown", handleEsc);
   }, [loading, onClose]);
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          {/* Backdrop */}
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          {/* Backdrop with Framer Motion */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => !loading && onClose()}
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/90 backdrop-blur-md"
           />
 
           {/* Modal Content */}
@@ -55,14 +69,14 @@ export default function DeleteModal({
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
             className={`relative bg-[#0a0a0a] border ${
               isRestricted ? "border-amber-500/20" : "border-white/10"
-            } p-8 rounded-[2rem] max-w-sm w-full shadow-2xl overflow-hidden`}
+            } p-8 rounded-[2.5rem] max-w-sm w-full shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden`}
           >
-            {/* Subtle Top Glow */}
+            {/* Thematic Glow */}
             <div className={`absolute -top-24 -left-24 h-48 w-48 blur-[80px] opacity-20 ${
               isRestricted ? "bg-amber-600" : "bg-red-600"
             }`} />
 
-            <div className="flex items-center gap-4 mb-6">
+            <div className="flex items-center gap-4 mb-6 relative">
               <div className={`p-3 rounded-2xl ${
                 isRestricted ? "bg-amber-500/10 text-amber-500" : "bg-red-500/10 text-red-500"
               }`}>
@@ -78,7 +92,7 @@ export default function DeleteModal({
               </div>
             </div>
 
-            <div className="text-zinc-400 mb-8 text-sm leading-relaxed">
+            <div className="text-zinc-400 mb-8 text-sm leading-relaxed relative">
               {description ? (
                 description
               ) : (
@@ -92,14 +106,14 @@ export default function DeleteModal({
                     <>
                       Are you sure you want to delete{" "}
                       <span className="text-orange-600 font-black">{orgName}</span>? 
-                      This action is irreversible and will purge all data.
+                      This action is irreversible and will purge all associated data.
                     </>
                   )}
                 </>
               )}
             </div>
 
-            <div className="flex gap-3 justify-end">
+            <div className="flex gap-3 justify-end relative">
               <button
                 onClick={onClose}
                 disabled={loading}
@@ -128,6 +142,7 @@ export default function DeleteModal({
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

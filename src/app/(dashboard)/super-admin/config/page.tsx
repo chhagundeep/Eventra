@@ -3,47 +3,40 @@
 import React, { useState, useEffect } from "react";
 import { 
   Shield, Zap, Globe, Database, 
-  Save, AlertTriangle, Cpu, Activity, Clock, Menu
+  Save, AlertTriangle, Cpu, Activity, Clock, 
+  Gamepad2, Music, BookOpen, Languages, Camera, 
+  Shirt, Leaf, Dumbbell, Dog, Palette, 
+  Trophy, DollarSign, Briefcase, Plane, Car, 
+  Accessibility, Hammer
 } from "lucide-react";
 import { db } from "@/lib/firebase"; 
-import { doc, writeBatch, serverTimestamp } from "firebase/firestore";
+import { 
+  doc, 
+  writeBatch, 
+  serverTimestamp, 
+  collection, 
+  getDocs 
+} from "firebase/firestore";
 
 const CATEGORY_DATA = [
-  { 
-    id: "yoga-meditation", 
-    name: "Yoga & Meditation", 
-    iconName: "Leaf", 
-    description: "Holistic wellness and mindfulness sessions.",
-    searchTags: ["zen", "stretching", "mental health", "asana", "wellness"] 
-  },
-  { 
-    id: "fitness-gym", 
-    name: "Fitness & Gym", 
-    iconName: "Dumbbell", 
-    description: "High-intensity workouts and strength training.",
-    searchTags: ["hiit", "cardio", "weightlifting", "crossfit", "strength"]
-  },
-  { 
-    id: "tech-workshops", 
-    name: "Technology & Coding", 
-    iconName: "Code", 
-    description: "Bootcamps, seminars, and hands-on tech learning.",
-    searchTags: ["programming", "ai", "webdev", "data science", "software"]
-  },
-  { 
-    id: "arts-photography", 
-    name: "Arts & Photography", 
-    iconName: "Camera", 
-    description: "Creative workshops for visual arts and capturing moments.",
-    searchTags: ["painting", "editing", "visuals", "creative", "design"]
-  },
-  { 
-    id: "music-dance", 
-    name: "Music & Dance", 
-    iconName: "Music", 
-    description: "Rhythm, melody, and movement classes.",
-    searchTags: ["zumba", "salsa", "instruments", "vocals", "performance"]
-  }
+  { id: "gaming", name: "Gaming", iconName: "Gamepad2", description: "E-sports and gaming events.", searchTags: ["esports", "streaming", "pc"] },
+  { id: "music", name: "Music", iconName: "Music", description: "Concerts and music lessons.", searchTags: ["live", "instruments", "vocals"] },
+  { id: "book", name: "Book", iconName: "BookOpen", description: "Reading clubs and author meets.", searchTags: ["literature", "writing", "library"] },
+  { id: "language", name: "Language", iconName: "Languages", description: "Language exchange and learning.", searchTags: ["polyglot", "translation", "culture"] },
+  { id: "photography", name: "Photography", iconName: "Camera", description: "Visual arts and editing classes.", searchTags: ["editing", "dslr", "portfolio"] },
+  { id: "fashion", name: "Fashion", iconName: "Shirt", description: "Style and apparel design.", searchTags: ["apparel", "design", "modeling"] },
+  { id: "nature", name: "Nature", iconName: "Leaf", description: "Outdoor adventures and conservation.", searchTags: ["hiking", "eco", "wildlife"] },
+  { id: "fitness", name: "Fitness", iconName: "Dumbbell", description: "Health and physical training.", searchTags: ["gym", "workout", "cardio"] },
+  { id: "animal", name: "Animal", iconName: "Dog", description: "Pet meets and animal welfare.", searchTags: ["pets", "veterinary", "adoption"] },
+  { id: "arts", name: "Arts", iconName: "Palette", description: "Visual and creative expressions.", searchTags: ["painting", "sculpture", "gallery"] },
+  { id: "sports", name: "Sports", iconName: "Trophy", description: "Competitive athletic events.", searchTags: ["football", "basketball", "athlete"] },
+  { id: "finance", name: "Finance", iconName: "DollarSign", description: "Wealth management and markets.", searchTags: ["trading", "investment", "crypto"] },
+  { id: "technology", name: "Technology", iconName: "Cpu", description: "Gadgets, AI, and hardware.", searchTags: ["hardware", "coding", "robotics"] },
+  { id: "business", name: "Business", iconName: "Briefcase", description: "Entrepreneurship and networking.", searchTags: ["startup", "corporate", "marketing"] },
+  { id: "travel", name: "Travel", iconName: "Plane", description: "Tourism and exploration.", searchTags: ["vacation", "backpacking", "hotel"] },
+  { id: "cars", name: "Cars", iconName: "Car", description: "Automotive and motorsports.", searchTags: ["racing", "luxury", "ev"] },
+  { id: "dance", name: "Dance", iconName: "Accessibility", description: "Movement and performance arts.", searchTags: ["zumba", "salsa", "hiphop"] },
+  { id: "workshop", name: "Workshop", iconName: "Hammer", description: "Skill-building and DIY projects.", searchTags: ["craft", "learning", "skills"] }
 ];
 
 export default function ConfigPage() {
@@ -75,6 +68,13 @@ export default function ConfigPage() {
     const batch = writeBatch(db);
 
     try {
+      // 1. CLEANUP PHASE: Wipe existing collection
+      const snapshot = await getDocs(collection(db, "categories"));
+      snapshot.docs.forEach((oldDoc) => {
+        batch.delete(oldDoc.ref);
+      });
+
+      // 2. SEED PHASE: Batch set new data
       CATEGORY_DATA.forEach((cat) => {
         const docRef = doc(db, "categories", cat.id);
         batch.set(docRef, {
@@ -92,15 +92,15 @@ export default function ConfigPage() {
       const newLog = { 
         id: Date.now(), 
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
-        action: "Global Category Seed", 
+        action: "Atomic Wipe & Sync", 
         status: "DEPLOYED", 
         user: "SuperAdmin_RA" 
       };
       setAuditLogs([newLog, ...auditLogs.slice(0, 4)]);
-      alert("System categories deployed to Firestore successfully!");
+      alert(`System Sync Complete: ${CATEGORY_DATA.length} categories live.`);
     } catch (error) {
       console.error("Deployment failed:", error);
-      alert("Deployment Error: Sync failed.");
+      alert("Deployment Error: Database Kernel Sync failed.");
     } finally {
       setIsSaving(false);
     }
@@ -108,8 +108,7 @@ export default function ConfigPage() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans">
-      
-      {/* Header - Stacked on mobile */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 md:mb-12 gap-6">
         <div>
           <h2 className="text-3xl md:text-5xl font-black italic tracking-tighter uppercase leading-none mb-3 md:mb-4">
@@ -130,8 +129,7 @@ export default function ConfigPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
-        
-        {/* Navigation - Horizontal scroll on small screens, vertical on large */}
+        {/* Navigation */}
         <div className="lg:col-span-3 flex lg:flex-col gap-2 overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
           <ConfigTab id="general" label="Engine" icon={<Globe size={18}/>} active={activeTab === "general"} onClick={setActiveTab} />
           <ConfigTab id="security" label="Auth" icon={<Shield size={18}/>} active={activeTab === "security"} onClick={setActiveTab} />
@@ -142,7 +140,6 @@ export default function ConfigPage() {
         {/* Content Area */}
         <div className="lg:col-span-9 space-y-6">
           <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-2xl md:rounded-[2.5rem] p-6 md:p-10 backdrop-blur-xl min-h-[400px]">
-            
             {activeTab === "general" && (
               <div className="space-y-8 animate-in fade-in duration-500">
                 <section>
@@ -202,15 +199,15 @@ export default function ConfigPage() {
                 <h3 className="text-lg md:text-xl font-black italic tracking-tight uppercase">Database Topology</h3>
                 <div className="p-4 md:p-6 bg-orange-600/10 border border-orange-600/30 rounded-xl md:rounded-2xl mb-4">
                   <p className="text-[10px] md:text-xs font-bold text-orange-500 uppercase flex items-center gap-2">
-                    <Database size={14} /> Ready to sync {CATEGORY_DATA.length} Global Categories
+                    <Database size={14} /> Batch Ready: {CATEGORY_DATA.length} Global Nodes
                   </p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                    <div className="p-4 md:p-6 bg-black/40 border border-zinc-800 rounded-xl md:rounded-2xl">
-                        <p className="text-[10px] font-black text-orange-500 uppercase mb-2">Primary Node</p>
-                        <p className="text-base md:text-lg font-bold">us-central1 (Firestore)</p>
-                        <p className="text-[10px] md:text-xs text-zinc-500 mt-1">Multi-tenant root structure.</p>
-                    </div>
+                  <div className="p-4 md:p-6 bg-black/40 border border-zinc-800 rounded-xl md:rounded-2xl">
+                    <p className="text-[10px] font-black text-orange-500 uppercase mb-2">Primary Node</p>
+                    <p className="text-base md:text-lg font-bold">us-central1 (Firestore)</p>
+                    <p className="text-[10px] md:text-xs text-zinc-500 mt-1">Multi-tenant root structure.</p>
+                  </div>
                 </div>
               </div>
             )}
@@ -232,7 +229,7 @@ export default function ConfigPage() {
             )}
           </div>
 
-          {/* Status Footer - Improved padding for mobile */}
+          {/* Status Footer */}
           <div className="bg-zinc-900/10 border border-zinc-800/50 rounded-2xl md:rounded-[2rem] p-4 md:p-6 flex items-center justify-between">
             <div className="flex items-center gap-3 md:gap-4">
               <div className={`h-10 w-10 md:h-12 md:w-12 bg-black rounded-lg md:rounded-xl border border-zinc-800 flex items-center justify-center ${latency > 20 ? 'text-orange-500' : 'text-emerald-500'}`}>
@@ -252,8 +249,7 @@ export default function ConfigPage() {
   );
 }
 
-// --- REFINED SUB-COMPONENTS ---
-
+// Sub-components remains the same as your previous structure
 function PermissionRow({ feature, roles }: { feature: string, roles: boolean[] }) {
   return (
     <tr className="hover:bg-white/5 transition-colors">

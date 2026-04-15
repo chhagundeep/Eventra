@@ -6,11 +6,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   UserCog, ArrowLeft, Search, Plus, 
   Mail, Phone, Shield, MoreVertical, 
-  Edit2, Trash2, Image as ImageIcon 
+  Edit2, Trash2 
 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, deleteDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
+import { Trainer } from "@/types";
 
 // --- COMPONENTS ---
 import EditTrainerDrawer from "@/components/modals/EditTrainerDrawer";
@@ -22,39 +23,46 @@ export default function OrganizationTrainers() {
   const id = params.id as string;
   const router = useRouter();
   
-  const [trainers, setTrainers] = useState<any[]>([]);
+  const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   // --- STATE FOR MODALS & MENUS ---
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
-  const [selectedTrainer, setSelectedTrainer] = useState<any | null>(null);
+  const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
 
-  const CLOUD_NAME = "dfxae9jrx"; 
-  const CLOUDINARY_BASE_URL = `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/f_auto,q_auto,w_300/`;
-
+  /**
+   * REAL-TIME DATA SYNC
+   * Listens to the specific tenant's trainer sub-collection.
+   */
   useEffect(() => {
     if (!id) return;
 
     const trainersRef = collection(db, "tenants", id, "trainers");
 
     const unsubscribe = onSnapshot(trainersRef, (snapshot) => {
-      const trainerData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const trainerData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          // Standardize 'categories' for the UI, supporting legacy 'specialties'
+          categories: data.categories || data.specialties || []
+        } as Trainer;
+      });
       setTrainers(trainerData);
       setLoading(false);
     }, (error) => {
       console.error("Firestore Error:", error);
-      toast.error("Failed to sync trainer data");
+      toast.error("Cloud Sync Error: Connection lost");
       setLoading(false);
     });
 
+    // Clean up the listener when the component unmounts
     return () => unsubscribe();
   }, [id]);
 
@@ -85,6 +93,7 @@ export default function OrganizationTrainers() {
         isOpen={isAddOpen} 
         onClose={() => setIsAddOpen(false)} 
         onSuccess={() => setIsAddOpen(false)} 
+        tenantId={id} 
       />
       
       <EditTrainerDrawer 
@@ -166,7 +175,6 @@ export default function OrganizationTrainers() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 key={trainer.id}
-                // Updated: Added dynamic z-index to handle overlaps when menu is open
                 className={`bg-zinc-900/40 border border-zinc-800/50 p-6 rounded-[2.5rem] group hover:border-orange-600/30 transition-all relative overflow-visible backdrop-blur-sm shadow-xl ${
                   activeMenuId === trainer.id ? "z-30" : "z-10"
                 }`}
@@ -174,9 +182,9 @@ export default function OrganizationTrainers() {
                 <div className="flex items-start justify-between relative z-10">
                   <div className="flex items-center gap-4">
                     <div className="h-16 w-16 bg-zinc-800 rounded-2xl flex items-center justify-center text-orange-500 overflow-hidden border border-zinc-700/50 shadow-inner relative">
-                      {trainer.imgId ? (
+                      {trainer.image ? (
                         <img 
-                          src={`${CLOUDINARY_BASE_URL}${trainer.imgId}`} 
+                          src={trainer.image} 
                           alt={trainer.name} 
                           className="h-full w-full object-cover"
                         />
@@ -196,7 +204,6 @@ export default function OrganizationTrainers() {
                     </div>
                   </div>
 
-                  {/* --- DROPDOWN ACTION MENU --- */}
                   <div className="relative">
                     <button 
                       onClick={(e) => {
@@ -222,7 +229,6 @@ export default function OrganizationTrainers() {
                             initial={{ opacity: 0, scale: 0.95, y: -10 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95 }}
-                            // Updated: Extremely high z-index for the menu itself
                             className="absolute right-0 mt-2 w-48 bg-[#0d0d0d] border border-white/10 rounded-2xl shadow-2xl p-2 z-[100] overflow-hidden"
                           >
                             <button 

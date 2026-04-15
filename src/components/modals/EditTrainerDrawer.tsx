@@ -4,10 +4,22 @@ import React, { useState, useEffect } from "react";
 import { X, Upload, Loader2, Tag, Save } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "@/lib/firebase";
-import { doc, updateDoc, collection, getDocs } from "firebase/firestore";
+import { 
+  doc, 
+  collection, 
+  getDocs, 
+  query, 
+  where, 
+  orderBy, 
+  writeBatch 
+} from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
+import { Category, Trainer } from "@/types";
 import toast from "react-hot-toast";
 
+/**
+ * Helper to handle image persistence to Cloudinary
+ */
 const uploadToCloudinary = async (file: File) => {
   const formData = new FormData();
   formData.append("file", file);
@@ -20,15 +32,15 @@ const uploadToCloudinary = async (file: File) => {
 
   if (!res.ok) throw new Error("Cloudinary Upload Failed");
   const data = await res.json();
-  return data.public_id;
+  return data.secure_url; 
 };
 
 interface EditTrainerDrawerProps {
   isOpen: boolean;
-  trainer: any | null;
+  trainer: Trainer | null;
   onClose: () => void;
   onSuccess: () => void;
-  tenantId?: string; // Prop passed from Organization page
+  tenantId?: string;
 }
 
 export default function EditTrainerDrawer({ 
@@ -39,16 +51,14 @@ export default function EditTrainerDrawer({
   tenantId: propsTenantId 
 }: EditTrainerDrawerProps) {
   const { tenantId: authTenantId } = useAuth();
-  
-  // Logic: Use passed prop (Admin view) or fallback to auth (Gym Owner view)
   const effectiveTenantId = propsTenantId || authTenantId;
 
   const [loading, setLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
-  const [availableCategories, setAvailableCategories] = useState<{id: string, name: string}[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -56,42 +66,63 @@ export default function EditTrainerDrawer({
     phone: "",
   });
 
-  // 1. Load Categories and Initialize Trainer Data
+  // --- INITIALIZE & CLEANUP DATA ---
   useEffect(() => {
+    let isMounted = true;
+
     const initData = async () => {
       try {
-        // Fetch categories once if list is empty
+        // Fetch available categories for the selection list
         if (availableCategories.length === 0) {
-          const snap = await getDocs(collection(db, "categories"));
-          setAvailableCategories(snap.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
+          const q = query(
+            collection(db, "categories"), 
+            where("isActive", "==", true),
+            orderBy("name", "asc")
+          );
+          const snap = await getDocs(q);
+          if (isMounted) {
+            setAvailableCategories(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Category[]);
+          }
         }
 
-        if (trainer) {
+        // Fill form with current trainer data
+        if (trainer && isMounted) {
           setFormData({
             name: trainer.name || "",
             email: trainer.email || "",
             phone: trainer.phone || "",
           });
-          setSelectedCategories(trainer.categories || []);
           
-          // Set initial preview to current Cloudinary image if it exists
-          if (trainer.imgId) {
-            setImagePreview(`https://res.cloudinary.com/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload/f_auto,q_auto,w_500/${trainer.imgId}`);
-          } else {
-            setImagePreview(null);
-          }
+          /**
+           * Standardized Logic: 
+           * We prioritize 'categories' but check 'specialties' for backward compatibility.
+           */
+          const initialCategories = trainer.categories || (trainer as any).specialties || [];
+          setSelectedCategoryIds(initialCategories);
+          
+          setImagePreview(trainer.image || null);
           setSelectedFile(null);
         }
       } catch (err) {
-        console.error("Error initializing edit drawer:", err);
+        console.error("Initialization error:", err);
       }
     };
-    if (isOpen) initData();
+
+    if (isOpen) {
+      initData();
+    } else {
+      // Clear state on close to prevent data flicker for the next item
+      setFormData({ name: "", email: "", phone: "" });
+      setImagePreview(null);
+      setSelectedCategoryIds([]);
+    }
+
+    return () => { isMounted = false; };
   }, [isOpen, trainer]);
 
-  const handleCategoryToggle = (catName: string) => {
-    setSelectedCategories(prev => 
-      prev.includes(catName) ? prev.filter(c => c !== catName) : [...prev, catName]
+  const handleCategoryToggle = (categoryId: string) => {
+    setSelectedCategoryIds(prev => 
+      prev.includes(categoryId) ? prev.filter(id => id !== categoryId) : [...prev, categoryId]
     );
   };
 
@@ -105,49 +136,55 @@ export default function EditTrainerDrawer({
     }
   };
 
+  /**
+   * ATOMIC BATCH UPDATE:
+   * Synchronizes changes across the global user profile and the tenant staff record.
+   */
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!effectiveTenantId || !trainer) return;
+    if (!effectiveTenantId || !trainer) return toast.error("Tenant isolation context missing");
+    if (selectedCategoryIds.length === 0) return toast.error("Select at least one specialty");
 
     setLoading(true);
-    const oldImgId = trainer.imgId;
+    const batch = writeBatch(db);
 
     try {
-      let finalImgId = oldImgId;
+      let finalImageUrl = trainer.image;
 
-      // 1. Image Upload Logic (if changed)
+      // Handle image update if a new file was chosen
       if (selectedFile) {
-        finalImgId = await uploadToCloudinary(selectedFile);
+        finalImageUrl = await uploadToCloudinary(selectedFile);
       }
 
-      // 2. Firestore Update Path
+      // 1. Sync Global User Profile
+      const userRef = doc(db, "users", trainer.uid);
+      batch.update(userRef, {
+        name: formData.name,
+        email: formData.email,
+      });
+
+      // 2. Sync Tenant-Specific Staff Record
       const trainerDocRef = doc(db, "tenants", effectiveTenantId, "trainers", trainer.id);
-      await updateDoc(trainerDocRef, {
+      
+      batch.update(trainerDocRef, {
         ...formData,
-        specialization: selectedCategories.join(", "),
-        categories: selectedCategories,
-        imgId: finalImgId,
+        /**
+         * MANDATORY FIX: 
+         * Using 'categories' key exclusively to prevent 'specialities' column creation.
+         */
+        categories: selectedCategoryIds, 
+        image: finalImageUrl,
         updatedAt: new Date().toISOString()
       });
 
-      // 3. API Cleanup for Cloudinary (Delete old image if replaced)
-      if (selectedFile && oldImgId) {
-        try {
-            await fetch("/api/admin/delete-image", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ publicIds: [oldImgId] }),
-            });
-        } catch (error) {
-            console.warn("Cleanup warning: Old image could not be removed from Cloudinary storage.");
-        }
-      }
+      await batch.commit();
 
-      toast.success("Profile updated successfully");
+      toast.success("Staff profile synchronized successfully");
       onSuccess();
-    } catch (error) {
+      onClose();
+    } catch (error: any) {
       console.error("Update failed:", error);
-      toast.error("Failed to sync changes with the database.");
+      toast.error("Failed to sync changes to the cluster.");
     } finally {
       setLoading(false);
     }
@@ -158,23 +195,19 @@ export default function EditTrainerDrawer({
       {isOpen && (
         <>
           <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }} 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
             onClick={onClose} 
             className="fixed inset-0 bg-black/80 backdrop-blur-md z-[102]" 
           />
           <motion.div 
-            initial={{ x: "100%" }} 
-            animate={{ x: 0 }} 
-            exit={{ x: "100%" }} 
+            initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
             className="fixed inset-y-0 right-0 w-full max-w-[480px] bg-[#050505] border-l border-white/5 z-[103] flex flex-col shadow-2xl"
           >
             {/* Header */}
             <div className="p-8 border-b border-white/5 flex items-center justify-between bg-zinc-900/20">
               <div>
-                <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter leading-none">Edit Profile</h2>
+                <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter">Edit Profile</h2>
                 <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest mt-2">Modify Staff Credentials</p>
               </div>
               <button onClick={onClose} className="p-3 bg-zinc-900 rounded-2xl text-zinc-500 hover:text-white transition-all">
@@ -183,38 +216,37 @@ export default function EditTrainerDrawer({
             </div>
 
             <form onSubmit={handleUpdate} className="flex-1 overflow-y-auto p-8 space-y-10 scrollbar-hide">
-              {/* Photo Section */}
+              {/* Image Upload */}
               <div className="space-y-4">
                 <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1">Identity Visual</label>
-                <div className="relative h-44 w-full rounded-[2rem] border-2 border-dashed border-white/5 hover:border-orange-600/50 transition-all flex flex-col items-center justify-center overflow-hidden bg-zinc-900/30 group">
+                <div className="relative h-44 w-full rounded-[2.5rem] border-2 border-dashed border-white/5 hover:border-orange-600/50 transition-all flex flex-col items-center justify-center overflow-hidden bg-zinc-900/30 group">
                   {imagePreview ? (
                     <img src={imagePreview} className="h-full w-full object-cover transition-transform group-hover:scale-105" alt="Preview" />
                   ) : (
-                    <div className="text-zinc-600 text-xs font-bold uppercase flex flex-col items-center gap-3">
-                        <Upload size={24} />
-                        <span>Upload Photo</span>
-                    </div>
+                    <Upload size={24} className="text-zinc-600" />
                   )}
                   <input type="file" onChange={handleImageChange} className="absolute inset-0 opacity-0 cursor-pointer" />
                 </div>
-                {selectedFile && (
-                  <p className="text-[9px] text-orange-500 font-black uppercase text-center tracking-tighter">New asset ready for synchronization</p>
-                )}
               </div>
 
-              {/* Categories Section */}
+              {/* Specialties/Categories Selection */}
               <div className="space-y-5">
-                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1 flex items-center gap-2">
-                  <Tag size={12} className="text-orange-600" /> Skillsets & Categories
-                </label>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex justify-between items-center px-1">
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                    <Tag size={12} className="text-orange-600" /> Categories
+                  </label>
+                  <span className="text-[10px] font-bold text-orange-600 uppercase tracking-tighter">
+                    {selectedCategoryIds.length} Selected
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2 max-h-[180px] overflow-y-auto p-1 scrollbar-hide">
                   {availableCategories.map((cat) => (
                     <button
                       key={cat.id}
                       type="button"
-                      onClick={() => handleCategoryToggle(cat.name)}
+                      onClick={() => handleCategoryToggle(cat.id)}
                       className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all border ${
-                        selectedCategories.includes(cat.name)
+                        selectedCategoryIds.includes(cat.id)
                           ? "bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-900/20"
                           : "bg-zinc-900/50 border-white/5 text-zinc-500 hover:border-white/10"
                       }`}
@@ -225,10 +257,10 @@ export default function EditTrainerDrawer({
                 </div>
               </div>
 
-              {/* Input Fields */}
+              {/* Text Fields */}
               <div className="grid gap-6">
                 {[
-                  { label: "Legal Name", key: "name", type: "text" },
+                  { label: "Display Name", key: "name", type: "text" },
                   { label: "Email Address", key: "email", type: "email" },
                   { label: "Phone Number", key: "phone", type: "tel" },
                 ].map((f) => (
@@ -237,7 +269,7 @@ export default function EditTrainerDrawer({
                     <input 
                       required 
                       type={f.type} 
-                      className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl py-4 px-5 text-sm text-white focus:border-orange-600/50 focus:outline-none transition-all placeholder:text-zinc-700" 
+                      className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl py-4 px-5 text-sm text-white focus:border-orange-600/50 focus:outline-none transition-all" 
                       value={(formData as any)[f.key]}
                       onChange={(e) => setFormData({ ...formData, [f.key]: e.target.value })} 
                     />
@@ -245,14 +277,13 @@ export default function EditTrainerDrawer({
                 ))}
               </div>
 
-              {/* Actions */}
+              {/* Submit Action */}
               <div className="pt-6 pb-12">
                 <button 
-                  type="submit" 
-                  disabled={loading} 
-                  className="w-full bg-orange-600 text-white py-5 rounded-[1.5rem] font-black uppercase text-xs tracking-widest hover:bg-orange-500 transition-all flex items-center justify-center gap-3 disabled:opacity-50 shadow-xl shadow-orange-900/20 active:scale-95"
+                  type="submit" disabled={loading} 
+                  className="w-full bg-orange-600 text-white py-5 rounded-[2rem] font-black uppercase text-xs tracking-widest hover:bg-orange-500 transition-all flex items-center justify-center gap-3 shadow-xl shadow-orange-900/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading ? <Loader2 size={20} className="animate-spin" /> : <><Save size={20} /> Update Credentials</>}
+                  {loading ? <Loader2 size={20} className="animate-spin" /> : <><Save size={20} /> Push Updates</>}
                 </button>
               </div>
             </form>

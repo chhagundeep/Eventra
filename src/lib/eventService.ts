@@ -5,17 +5,42 @@ import {
   doc, 
   setDoc,
   updateDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
   serverTimestamp 
 } from "firebase/firestore";
-import { EventraEvent } from "@/types";
+import { EventraEvent, Category } from "@/types";
+
+/**
+ * FETCH GLOBAL CATEGORIES
+ * Returns the 18 seeded categories for dropdowns/filters
+ */
+export const getCategories = async (): Promise<Category[]> => {
+  try {
+    const q = query(
+      collection(db, "categories"), 
+      where("isActive", "==", true),
+      orderBy("name", "asc")
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Category[];
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+    return [];
+  }
+};
 
 /**
  * DEPLOY NEW EVENT
- * Handles private tenant storage and public mobile app sync.
  */
 export const createEvent = async (
   tenantId: string, 
-  eventData: any 
+  eventData: EventraEvent // Using strict type
 ) => {
   try {
     // 1. Reference to the Organization's private events
@@ -53,7 +78,6 @@ export const createEvent = async (
 
 /**
  * UPDATE EXISTING EVENT
- * Updates both the private tenant record and the public mobile sync.
  */
 export const updateEvent = async (
   tenantId: string,
@@ -61,22 +85,18 @@ export const updateEvent = async (
   eventData: Partial<EventraEvent>
 ) => {
   try {
-    // 1. Update private tenant record
     const eventRef = doc(db, "tenants", tenantId, "events", eventId);
     await updateDoc(eventRef, {
       ...eventData,
       updatedAt: serverTimestamp(),
     });
 
-    // 2. Sync changes to publicEvents for Mobile App
     const publicEventRef = doc(db, "publicEvents", eventId);
     
-    // We use setDoc with merge: true to avoid overwriting fields not included in eventData
     await setDoc(publicEventRef, {
       ...eventData,
       eventId: eventId,
       tenantId: tenantId,
-      // Update primary image if the images array was modified
       imageUrl: eventData.images && eventData.images.length > 0 
         ? eventData.images[0] 
         : (eventData as any).imageUrl || "",
