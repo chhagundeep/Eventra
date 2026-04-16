@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { 
-  Plus, Calendar, Loader2, ChevronRight, Trash2
+  Plus, Calendar, Loader2, ChevronRight, Trash2, MapPin, Users, Ticket
 } from "lucide-react";
 import CreateEventModal from "@/components/modals/CreateEventModal";
 import DeleteConfirmModal from "@/components/modals/DeleteConfirmModal";
 import { db } from "@/lib/firebase";
-import { collection, query, getDocs, orderBy, deleteDoc, doc, onSnapshot } from "firebase/firestore";
+import { collection, query, doc, deleteDoc, onSnapshot, orderBy } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { EventraEvent, Trainer } from "@/types";
 import toast from "react-hot-toast";
@@ -94,18 +94,35 @@ function EventCard({ event, onManage, onDelete }: {
           {event.title}
         </h3>
         
-        <div className="grid grid-cols-3 gap-2 py-4 border-y border-zinc-900">
-          <div className="space-y-1">
-            <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Scheduled</p>
-            <p className="text-[10px] font-bold text-zinc-300">{event.date}</p>
+        {/* UPDATED 2x2 GRID FOR LOCATION INCLUSION */}
+        <div className="grid grid-cols-2 gap-4 py-4 border-y border-zinc-900">
+          <div className="flex items-center gap-2">
+            <Calendar size={14} className="text-orange-600" />
+            <div className="space-y-0.5">
+              <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Date</p>
+              <p className="text-[10px] font-bold text-zinc-300">{event.date}</p>
+            </div>
           </div>
-          <div className="space-y-1 border-x border-zinc-900 px-3 text-center">
-            <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Payload</p>
-            <p className="text-[10px] font-bold text-zinc-300">{event.capacity} Max</p>
+          <div className="flex items-center gap-2">
+            <MapPin size={14} className="text-orange-600" />
+            <div className="space-y-0.5">
+              <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Location</p>
+              <p className="text-[10px] font-bold text-zinc-300 truncate max-w-[100px]">{event.locationName || "Remote"}</p>
+            </div>
           </div>
-          <div className="space-y-1 text-right">
-            <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Credit</p>
-            <p className="text-[10px] font-black text-white">Rs.{event.price || 0}</p>
+          <div className="flex items-center gap-2">
+            <Users size={14} className="text-orange-600" />
+            <div className="space-y-0.5">
+              <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Payload</p>
+              <p className="text-[10px] font-bold text-zinc-300">{event.capacity} Max</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Ticket size={14} className="text-orange-600" />
+            <div className="space-y-0.5">
+              <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Credit</p>
+              <p className="text-[10px] font-black text-white">Rs.{event.price || 0}</p>
+            </div>
           </div>
         </div>
 
@@ -145,19 +162,16 @@ export default function EventsManagerPage() {
   const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // 1. Unified Real-time Listener for Events & Trainers
   useEffect(() => {
     if (!tenantId) return;
 
     setLoading(true);
 
-    // Sync Trainers
     const trainersRef = collection(db, "tenants", tenantId, "trainers");
     const unsubTrainers = onSnapshot(trainersRef, (snap) => {
       setTrainers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Trainer)));
     });
 
-    // Sync Events
     const eventsRef = collection(db, "tenants", tenantId, "events");
     const q = query(eventsRef, orderBy("createdAt", "desc"));
     const unsubEvents = onSnapshot(q, (snap) => {
@@ -183,7 +197,6 @@ export default function EventsManagerPage() {
     try {
       const targetEvent = events.find(e => e.id === eventToDelete.id);
       
-      // A. Cloudinary Purge
       if (targetEvent?.images && targetEvent.images.length > 0) {
         const publicIds = targetEvent.images.map(url => extractIdFromUrl(url)).filter(Boolean) as string[];
         if (publicIds.length > 0) {
@@ -195,7 +208,6 @@ export default function EventsManagerPage() {
         }
       }
 
-      // B. Firestore Purge (Tenant + Public)
       await Promise.all([
         deleteDoc(doc(db, "tenants", tenantId, "events", eventToDelete.id)),
         deleteDoc(doc(db, "publicEvents", eventToDelete.id))

@@ -52,14 +52,18 @@ export interface Tenant {
 
 export interface EventraEvent {
   id?: string;
+  tenantId: string;      // Required for security rules
   title: string;
   description: string;
-  date: string;
-  category: string; 
+  date: string;          // ISO string or YYYY-MM-DD
+  category: string;      // Category ID
   capacity: number;
   price: number;
-  trainerId: string; // Refers to Trainer.id
-  images: string[]; 
+  trainerId: string;
+  images: string[];      // Array of Cloudinary URLs
   status: "active" | "completed" | "cancelled";
-  createdAt: FieldValue | Timestamp | any;
+  createdAt?: FieldValue | Timestamp | any;
+  locationName: string;  // Human-readable address
+  latitude: number;      // Decimal coordinate
+  longitude: number;     // Decimal coordinate
 }

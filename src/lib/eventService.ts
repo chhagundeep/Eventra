@@ -15,7 +15,6 @@ import { EventraEvent, Category } from "@/types";
 
 /**
  * FETCH GLOBAL CATEGORIES
- * Returns the 18 seeded categories for dropdowns/filters
  */
 export const getCategories = async (): Promise<Category[]> => {
   try {
@@ -37,35 +36,35 @@ export const getCategories = async (): Promise<Category[]> => {
 
 /**
  * DEPLOY NEW EVENT
+ * Includes GPS coordinates for the mobile app and map rendering
  */
 export const createEvent = async (
   tenantId: string, 
-  eventData: EventraEvent // Using strict type
+  eventData: EventraEvent 
 ) => {
   try {
-    // 1. Reference to the Organization's private events
+    // 1. Reference to the Organization's private sub-collection
     const tenantEventsRef = collection(db, "tenants", tenantId, "events");
     
-    // 2. Add document to the private sub-collection
+    // 2. Add document to private collection
     const newEventDoc = await addDoc(tenantEventsRef, {
       ...eventData,
       tenantId,
       createdAt: serverTimestamp(),
     });
 
-    // 3. Sync to publicEvents for the Mobile App
+    // 3. Sync to publicEvents (Mobile App & Global Discovery)
     const publicEventRef = doc(db, "publicEvents", newEventDoc.id);
     
     await setDoc(publicEventRef, {
       ...eventData,
       eventId: newEventDoc.id,
       tenantId: tenantId,
-      // Mobile app primary image compatibility
+      // Compatibility for mobile app primary image
       imageUrl: eventData.images && eventData.images.length > 0 
         ? eventData.images[0] 
         : "", 
-      images: eventData.images || [],
-      status: eventData.status || "active",
+      // GPS Data is included here via ...eventData
       createdAt: serverTimestamp(),
     });
 
@@ -85,12 +84,14 @@ export const updateEvent = async (
   eventData: Partial<EventraEvent>
 ) => {
   try {
+    // 1. Update private tenant record
     const eventRef = doc(db, "tenants", tenantId, "events", eventId);
     await updateDoc(eventRef, {
       ...eventData,
       updatedAt: serverTimestamp(),
     });
 
+    // 2. Update public discovery record
     const publicEventRef = doc(db, "publicEvents", eventId);
     
     await setDoc(publicEventRef, {
@@ -101,7 +102,7 @@ export const updateEvent = async (
         ? eventData.images[0] 
         : (eventData as any).imageUrl || "",
       updatedAt: serverTimestamp(),
-    }, { merge: true });
+    }, { merge: true }); // Merge ensures we don't overwrite unrelated public fields
 
     return true;
   } catch (error) {

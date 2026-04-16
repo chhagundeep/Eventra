@@ -1,14 +1,15 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, use } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { doc, onSnapshot, deleteDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { 
   ArrowLeft, Users, Calendar, Clock, MapPin, 
-  TrendingUp, Ticket, CheckSquare, Edit3, Trash2, 
-  Zap
+  TrendingUp, Ticket, Edit3, Trash2, 
+  Zap, Navigation
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 // Modals
 import CreateEventModal from "@/components/modals/CreateEventModal";
@@ -17,21 +18,20 @@ import CreateSlotModal from "@/components/modals/CreateSlotModal";
 
 // Sub-components
 import SlotList from "@/components/slots/SlotList";
+import { EventraEvent, Trainer } from "@/types";
 
 interface PageProps {
   params: Promise<{ id: string; eventId: string }>;
 }
 
-// --- HELPER: EXTRACTION LOGIC ---
+// --- REFINED ID EXTRACTION ---
 const extractIdFromUrl = (url: string) => {
   try {
     const parts = url.split('/upload/');
     if (parts.length < 2) return null;
     const pathWithExtension = parts[1].replace(/^v\d+\//, '');
-    const publicId = pathWithExtension.split('.')[0];
-    return publicId;
+    return pathWithExtension.split('.')[0];
   } catch (error) {
-    console.error("ID Extraction failed for URL:", url, error);
     return null;
   }
 };
@@ -40,8 +40,8 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
   const { id: organizationId, eventId } = use(params);
   const router = useRouter();
   
-  const [event, setEvent] = useState<any>(null);
-  const [trainers, setTrainers] = useState<any[]>([]); 
+  const [event, setEvent] = useState<EventraEvent | null>(null);
+  const [trainers, setTrainers] = useState<Trainer[]>([]); 
   const [loading, setLoading] = useState(true);
   
   // Slideshow State
@@ -59,7 +59,7 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
     try {
       const trainersRef = collection(db, "tenants", organizationId, "trainers");
       const snap = await getDocs(trainersRef);
-      setTrainers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setTrainers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Trainer)));
     } catch (error) {
       console.error("Critical: Failed to fetch trainers for node:", error);
     }
@@ -70,10 +70,10 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
 
     fetchTrainers(); 
 
-    const eventRef = doc(db, "tenants", organizationId, "events", eventId as string);
+    const eventRef = doc(db, "tenants", organizationId, "events", eventId);
     const unsubscribe = onSnapshot(eventRef, (docSnap) => {
       if (docSnap.exists()) {
-        setEvent({ id: docSnap.id, ...docSnap.data() });
+        setEvent({ id: docSnap.id, ...docSnap.data() } as EventraEvent);
       } else {
         router.push(`/super-admin/organizations/${organizationId}/events`);
       }
@@ -86,26 +86,20 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
   useEffect(() => {
     const images = event?.images || [];
     if (images.length <= 1) return;
-    
     const interval = setInterval(() => {
       setCurrentImgIdx((prev) => (prev + 1) % images.length);
     }, 5000); 
-    
     return () => clearInterval(interval);
   }, [event?.images]);
 
-  // 3. Delete Logic
+  // 3. Purge Logic
   const handleConfirmDelete = async () => {
     if (!organizationId || !eventId || !event) return;
     setIsDeleting(true);
 
     try {
-      // Step A: Purge Cloudinary Assets
       if (event.images && event.images.length > 0) {
-        const publicIds = event.images
-          .map((url: string) => extractIdFromUrl(url))
-          .filter((id: string | null) => id !== null) as string[];
-
+        const publicIds = event.images.map(url => extractIdFromUrl(url)).filter(Boolean) as string[];
         if (publicIds.length > 0) {
           await fetch("/api/admin/delete-image", {
             method: "POST",
@@ -115,13 +109,15 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
         }
       }
 
-      // Step B: Purge Firestore Documents
-      await deleteDoc(doc(db, "tenants", organizationId, "events", eventId as string));
-      await deleteDoc(doc(db, "publicEvents", eventId as string));
+      await Promise.all([
+        deleteDoc(doc(db, "tenants", organizationId, "events", eventId)),
+        deleteDoc(doc(db, "publicEvents", eventId))
+      ]);
       
+      toast.success("Infrastructure node purged.");
       router.push(`/super-admin/organizations/${organizationId}/events`);
     } catch (error) {
-      console.error("Purge phase failed:", error);
+      toast.error("Purge protocol failed.");
     } finally {
       setIsDeleting(false);
       setIsDeleteModalOpen(false);
@@ -138,7 +134,7 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-black text-white p-4 lg:p-8 font-sans">
-      {/* Header Area */}
+      {/* HEADER AREA */}
       <div className="max-w-[1600px] mx-auto mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
           <button 
@@ -155,19 +151,19 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setIsSlotModalOpen(true)}
-            className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-black rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
+            className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-black rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-orange-600/20"
           >
             <Zap size={14} fill="black" /> Deploy Slot
           </button>
           <button 
             onClick={() => setIsEditModalOpen(true)}
-            className="px-6 py-3 bg-zinc-900 hover:bg-orange-600 border border-zinc-800 hover:border-orange-500 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
+            className="px-6 py-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
           >
             <Edit3 size={14} /> Edit Node
           </button>
           <button 
             onClick={() => setIsDeleteModalOpen(true)}
-            className="px-6 py-3 bg-red-950/20 hover:bg-red-600 border border-red-900/50 hover:border-red-500 text-red-500 hover:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
+            className="px-6 py-3 bg-red-950/20 hover:bg-red-600 border border-red-900/50 text-red-500 hover:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
           >
             <Trash2 size={14} /> Purge Node
           </button>
@@ -175,20 +171,18 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
       </div>
 
       <div className="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* LEFT COLUMN */}
         <div className="lg:col-span-8 space-y-8">
           <div className="bg-zinc-950 border border-zinc-900 rounded-[3rem] overflow-hidden group">
             <div className="h-[450px] relative overflow-hidden bg-zinc-900">
               {images.length > 0 ? (
-                images.map((img: string, idx: number) => (
+                images.map((img, idx) => (
                   <img
                     key={idx}
                     src={img}
                     className={`absolute inset-0 w-full h-full object-cover transition-all duration-1000 ${
                       idx === currentImgIdx ? "opacity-60 scale-100" : "opacity-0 scale-110"
                     }`}
-                    alt={`Node Media ${idx}`}
+                    alt=""
                   />
                 ))
               ) : (
@@ -196,11 +190,8 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
               )}
               
               <div className="absolute bottom-10 right-10 flex gap-2 z-20">
-                {images.map((_: any, i: number) => (
-                  <div 
-                    key={i} 
-                    className={`h-1.5 transition-all duration-500 rounded-full ${i === currentImgIdx ? "w-8 bg-orange-600" : "w-2 bg-zinc-700"}`} 
-                  />
+                {images.map((_, i) => (
+                  <div key={i} className={`h-1.5 transition-all duration-500 rounded-full ${i === currentImgIdx ? "w-8 bg-orange-600" : "w-2 bg-zinc-700"}`} />
                 ))}
               </div>
 
@@ -213,16 +204,38 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
               </div>
             </div>
             
+            {/* DYNAMIC DETAILS GRID */}
             <div className="p-10 grid grid-cols-2 md:grid-cols-4 gap-8 border-t border-zinc-900">
                 <DetailItem icon={<Calendar size={18}/>} label="Deployment Date" value={event?.date} />
-                <DetailItem icon={<MapPin size={18}/>} label="Location" value="Remote Node" />
+                <DetailItem icon={<MapPin size={18}/>} label="Location" value={event?.locationName || "Remote Node"} />
                 <DetailItem icon={<Users size={18}/>} label="Capacity" value={`${event?.capacity} Max`} />
                 <DetailItem icon={<Ticket size={18} className="text-orange-500"/>} label="Base Unit Price" value={`Rs. ${event?.price || 0}`} />
             </div>
 
+            {/* SUPER-ADMIN TELEMETRY OVERLAY */}
+            <div className="px-10 pb-6 flex items-center gap-4">
+               <div className="flex items-center gap-3 bg-zinc-900/30 px-4 py-2 rounded-xl border border-zinc-800/50">
+                 <span className="text-[8px] font-black text-orange-600 uppercase tracking-widest">GPS_LAT</span>
+                 <span className="text-[10px] font-mono text-zinc-500">{event?.latitude || "0.00"}</span>
+               </div>
+               <div className="flex items-center gap-3 bg-zinc-900/30 px-4 py-2 rounded-xl border border-zinc-800/50">
+                 <span className="text-[8px] font-black text-orange-600 uppercase tracking-widest">GPS_LONG</span>
+                 <span className="text-[10px] font-mono text-zinc-500">{event?.longitude || "0.00"}</span>
+               </div>
+               {event?.latitude && event?.longitude && (
+                 <a 
+                   href={`https://www.google.com/maps?q=${event.latitude},${event.longitude}`}
+                   target="_blank"
+                   className="text-orange-500 hover:text-white transition-colors"
+                 >
+                   <Navigation size={16} />
+                 </a>
+               )}
+            </div>
+
             <div className="px-10 pb-10">
                <p className="text-zinc-500 leading-relaxed font-medium italic border-l-2 border-orange-600 pl-6">
-                {event?.description}
+                "{event?.description}"
                </p>
             </div>
           </div>
@@ -232,21 +245,15 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
                 <Clock size={16} /> Active Operational Slots
              </h3>
              <SlotList 
-               eventId={eventId as string} 
+               eventId={eventId} 
                tenantId={organizationId} 
                price={event?.price || 0} 
              />
           </div>
         </div>
 
-        {/* RIGHT COLUMN */}
         <div className="lg:col-span-4 space-y-8">
-          <AnalyticsCard 
-            title="Registry Utilization" 
-            value="75%" 
-            sub="Active Payload" 
-            color="text-orange-500" 
-          />
+          <AnalyticsCard title="Registry Utilization" value="75%" sub="Active Payload" color="text-orange-500" />
 
           <div className="bg-zinc-950 p-8 rounded-[2.5rem] border border-zinc-900 relative overflow-hidden group">
             <h3 className="text-xs font-black uppercase tracking-[0.3em] text-zinc-500 mb-6">Projected Revenue</h3>
@@ -278,12 +285,11 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* --- MODALS --- */}
       <CreateEventModal 
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         tenantId={organizationId}
-        initialData={event} 
+        initialData={event || undefined} 
         trainers={trainers} 
       />
 
@@ -298,7 +304,7 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
       <CreateSlotModal 
         isOpen={isSlotModalOpen}
         onClose={() => setIsSlotModalOpen(false)}
-        eventId={eventId as string}
+        eventId={eventId}
         tenantId={organizationId}
         defaultCapacity={event?.capacity || 0}
       />
@@ -306,13 +312,13 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
   );
 }
 
-function DetailItem({ icon, label, value, className = "" }: any) {
+function DetailItem({ icon, label, value }: { icon: React.ReactNode, label: string, value: any }) {
   return (
-    <div className={`space-y-1 ${className}`}>
+    <div className="space-y-1">
       <div className="flex items-center gap-2 text-zinc-600 uppercase text-[8px] font-black tracking-widest">
         {icon} {label}
       </div>
-      <p className="text-sm font-bold text-zinc-200">{value}</p>
+      <p className="text-sm font-bold text-zinc-200">{value || "---"}</p>
     </div>
   );
 }
@@ -321,9 +327,7 @@ function AnalyticsCard({ title, value, sub, color }: any) {
   return (
     <div className="bg-zinc-950 p-8 rounded-[2.5rem] border border-zinc-900">
       <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-2">{title}</p>
-      <div className="flex items-baseline gap-2">
-        <h3 className={`text-5xl font-black italic tracking-tighter ${color}`}>{value}</h3>
-      </div>
+      <h3 className={`text-5xl font-black italic tracking-tighter ${color}`}>{value}</h3>
       <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-2">{sub}</p>
     </div>
   );

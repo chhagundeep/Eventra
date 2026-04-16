@@ -11,7 +11,7 @@ import {
   deleteDoc 
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { EventraEvent } from "@/types";
+import { EventraEvent, Trainer } from "@/types";
 import { 
   Plus, 
   ArrowLeft, 
@@ -20,7 +20,11 @@ import {
   Trash2,
   Edit3,
   ChevronRight,
-  Dumbbell
+  MapPin,
+  Calendar,
+  Users,
+  Ticket,
+  Activity
 } from "lucide-react";
 import Link from "next/link";
 import CreateEventModal from "@/components/modals/CreateEventModal";
@@ -45,7 +49,7 @@ function EventSlideshow({ images }: { images: string[] }) {
   if (!images || images.length === 0) {
     return (
       <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
-        <Dumbbell className="text-zinc-800 animate-pulse" size={40} />
+        <Activity className="text-zinc-800 animate-pulse" size={40} />
       </div>
     );
   }
@@ -86,7 +90,7 @@ export default function OrganizationEventsPage({ params }: PageProps) {
   const { id: organizationId } = use(params);
   
   const [events, setEvents] = useState<EventraEvent[]>([]);
-  const [trainers, setTrainers] = useState<{ id: string; name: string }[]>([]);
+  const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [orgName, setOrgName] = useState("Organization Node");
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -114,7 +118,7 @@ export default function OrganizationEventsPage({ params }: PageProps) {
 
       const trainersRef = collection(db, "tenants", organizationId, "trainers");
       const tSnapshot = await getDocs(trainersRef);
-      setTrainers(tSnapshot.docs.map(d => ({ id: d.id, name: d.data().name })));
+      setTrainers(tSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Trainer)));
     } catch (error) {
       console.error("Fetch Error:", error);
     } finally {
@@ -127,6 +131,7 @@ export default function OrganizationEventsPage({ params }: PageProps) {
     setDeleteLoading(true);
     try {
       await deleteDoc(doc(db, "tenants", organizationId, "events", eventToDelete.id));
+      await deleteDoc(doc(db, "publicEvents", eventToDelete.id));
       setEvents(prev => prev.filter(e => e.id !== eventToDelete.id));
       setIsDeleteModalOpen(false);
       setEventToDelete(null);
@@ -147,10 +152,10 @@ export default function OrganizationEventsPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white p-4 md:p-10 font-sans selection:bg-orange-600 overflow-x-hidden">
-      <div className="max-w-6xl mx-auto space-y-12">
+      <div className="max-w-[1600px] mx-auto space-y-12">
         
         {/* --- HEADER SECTION --- */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-white/5 pb-10">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 border-b border-white/5 pb-10">
           <div className="space-y-4">
             <Link 
               href="/super-admin/organizations" 
@@ -215,22 +220,39 @@ export default function OrganizationEventsPage({ params }: PageProps) {
 
                 <div className="px-4 pb-4 space-y-6 flex-grow flex flex-col justify-between">
                   <div className="space-y-4">
-                    <h3 className="text-2xl font-black uppercase tracking-tighter leading-none group-hover:text-orange-500 transition-colors line-clamp-2">
+                    <h3 className="text-2xl font-black uppercase tracking-tighter leading-none group-hover:text-orange-500 transition-colors line-clamp-1">
                       {event.title}
                     </h3>
 
-                    <div className="grid grid-cols-3 gap-2 border-y border-white/5 py-5">
-                      <div className="text-center">
-                        <p className="text-zinc-600 text-[8px] font-black uppercase tracking-widest mb-1">Scheduled</p>
-                        <p className="text-[10px] font-bold font-mono">{event.date}</p>
+                    {/* UPDATED 2x2 METADATA GRID WITH LOCATION */}
+                    <div className="grid grid-cols-2 gap-4 border-y border-white/5 py-5">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={14} className="text-orange-600" />
+                        <div className="space-y-0.5">
+                          <p className="text-zinc-600 text-[8px] font-black uppercase tracking-widest">Date</p>
+                          <p className="text-[10px] font-bold font-mono">{event.date}</p>
+                        </div>
                       </div>
-                      <div className="text-center border-x border-white/5 px-2">
-                        <p className="text-zinc-600 text-[8px] font-black uppercase tracking-widest mb-1">Payload</p>
-                        <p className="text-[10px] font-bold">{event.capacity} Max</p>
+                      <div className="flex items-center gap-2">
+                        <MapPin size={14} className="text-orange-600" />
+                        <div className="space-y-0.5">
+                          <p className="text-zinc-600 text-[8px] font-black uppercase tracking-widest">Location</p>
+                          <p className="text-[10px] font-bold truncate max-w-[80px]">{event.locationName || "Remote"}</p>
+                        </div>
                       </div>
-                      <div className="text-center">
-                        <p className="text-zinc-600 text-[8px] font-black uppercase tracking-widest mb-1">Credit</p>
-                        <p className="text-[11px] font-black text-white">Rs.<span className="text-orange-500">{event.price || "0"}</span></p>
+                      <div className="flex items-center gap-2">
+                        <Users size={14} className="text-orange-600" />
+                        <div className="space-y-0.5">
+                          <p className="text-zinc-600 text-[8px] font-black uppercase tracking-widest">Payload</p>
+                          <p className="text-[10px] font-bold">{event.capacity} Max</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Ticket size={14} className="text-orange-600" />
+                        <div className="space-y-0.5">
+                          <p className="text-zinc-600 text-[8px] font-black uppercase tracking-widest">Credit</p>
+                          <p className="text-[10px] font-black text-white">Rs.{event.price || "0"}</p>
+                        </div>
                       </div>
                     </div>
 
@@ -239,11 +261,11 @@ export default function OrganizationEventsPage({ params }: PageProps) {
                     </p>
                   </div>
 
-                  {/* ACTION ROW - Corrected for Super Admin context */}
+                  {/* ACTION ROW */}
                   <div className="flex items-center gap-1.5 pt-4">
                     <Link 
                       href={`/super-admin/organizations/${organizationId}/events/${event.id}`}
-                      className="flex-1 bg-white text-black py-4 px-2 rounded-2xl font-black uppercase text-[10px] tracking-[0.05em] sm:tracking-[0.15em] hover:bg-orange-600 hover:text-white transition-all flex items-center justify-center gap-1 sm:gap-3 group/btn min-w-0"
+                      className="flex-1 bg-white text-black py-4 px-2 rounded-2xl font-black uppercase text-[10px] tracking-[0.1em] hover:bg-orange-600 hover:text-white transition-all flex items-center justify-center gap-2 group/btn min-w-0"
                     >
                       <span className="truncate">Manage Node</span>
                       <ChevronRight size={14} strokeWidth={3} className="shrink-0 group-hover/btn:translate-x-1 transition-transform" />

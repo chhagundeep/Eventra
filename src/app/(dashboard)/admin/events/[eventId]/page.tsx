@@ -7,7 +7,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
 import { 
   ArrowLeft, Users, Calendar, Clock, MapPin, 
-  TrendingUp, Ticket, Edit3, Trash2, Zap, Tag
+  TrendingUp, Ticket, Edit3, Trash2, Zap, Tag, Navigation
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -61,18 +61,17 @@ export default function AdminEventDetailPage({ params }: PageProps) {
       if (!snap.empty) {
         setCategoryLabel(snap.docs[0].data().name);
       } else {
-        setCategoryLabel(catId); // Fallback to ID if name not found
+        setCategoryLabel(catId); 
       }
     } catch (error) {
       console.error("Category lookup failed", error);
     }
   }, []);
 
-  // 2. Real-time Event Listener
+  // 2. Real-time Event Listener & Trainers Fetch
   useEffect(() => {
     if (!tenantId || !eventId) return;
 
-    // Fetch Trainers for the Assigned Trainer card
     const fetchTrainers = async () => {
       const tRef = collection(db, "tenants", tenantId, "trainers");
       const snap = await getDocs(tRef);
@@ -83,7 +82,7 @@ export default function AdminEventDetailPage({ params }: PageProps) {
     const eventRef = doc(db, "tenants", tenantId, "events", eventId);
     const unsubscribe = onSnapshot(eventRef, (docSnap) => {
       if (docSnap.exists()) {
-        const data = docSnap.id ? { id: docSnap.id, ...docSnap.data() } as EventraEvent : null;
+        const data = { id: docSnap.id, ...docSnap.data() } as EventraEvent;
         setEvent(data);
         if (data?.category) fetchCategoryName(data.category);
       } else {
@@ -105,7 +104,7 @@ export default function AdminEventDetailPage({ params }: PageProps) {
     return () => clearInterval(interval);
   }, [event?.images]);
 
-  // 4. Purge Protocol (Cloudinary + Firestore Dual-Sync)
+  // 4. Purge Protocol
   const handleConfirmDelete = async () => {
     if (!tenantId || !eventId || !event) return;
     setIsDeleting(true);
@@ -218,11 +217,34 @@ export default function AdminEventDetailPage({ params }: PageProps) {
               </div>
             </div>
             
+            {/* CORE DETAILS GRID */}
             <div className="p-12 grid grid-cols-2 md:grid-cols-4 gap-10 border-t border-zinc-900">
                 <DetailItem icon={<Calendar size={18}/>} label="Schedule" value={event?.date} />
-                <DetailItem icon={<MapPin size={18}/>} label="Node Location" value="HQ Base" />
+                <DetailItem icon={<MapPin size={18}/>} label="Node Location" value={event?.locationName || "Location TBD"} />
                 <DetailItem icon={<Users size={18}/>} label="Max Payload" value={`${event?.capacity} Pax`} />
                 <DetailItem icon={<Ticket size={18} className="text-orange-500"/>} label="Access Fee" value={`Rs. ${event?.price || 0}`} />
+            </div>
+
+            {/* GPS TELEMETRY BAR */}
+            <div className="px-12 pb-8 flex flex-wrap items-center gap-6">
+               <div className="flex items-center gap-3 bg-zinc-900/50 px-5 py-3 rounded-2xl border border-zinc-800">
+                 <span className="text-[9px] font-black text-orange-600 uppercase tracking-widest">LAT</span>
+                 <span className="text-xs font-mono text-zinc-400">{event?.latitude || "0.0000"}</span>
+               </div>
+               <div className="flex items-center gap-3 bg-zinc-900/50 px-5 py-3 rounded-2xl border border-zinc-800">
+                 <span className="text-[9px] font-black text-orange-600 uppercase tracking-widest">LONG</span>
+                 <span className="text-xs font-mono text-zinc-400">{event?.longitude || "0.0000"}</span>
+               </div>
+               {event?.latitude && event?.longitude && (
+                 <a 
+                   href={`https://www.google.com/maps?q=${event.latitude},${event.longitude}`}
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   className="flex items-center gap-2 text-orange-500 hover:text-orange-400 transition-colors text-[10px] font-black uppercase tracking-widest"
+                 >
+                   <Navigation size={14} /> View On Map
+                 </a>
+               )}
             </div>
 
             <div className="px-12 pb-12">

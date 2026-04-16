@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { X, Zap, Calendar, Clock, Users } from "lucide-react";
+import toast from "react-hot-toast";
 
 interface CreateSlotModalProps {
   isOpen: boolean;
@@ -26,16 +27,33 @@ export default function CreateSlotModal({
   const [capacity, setCapacity] = useState(defaultCapacity);
   const [loading, setLoading] = useState(false);
 
+  // Reset form when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setDate("");
+      setStartTime("");
+      setEndTime("");
+      setCapacity(defaultCapacity);
+    }
+  }, [isOpen, defaultCapacity]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validation: Ensure end time is after start time
+    const start = new Date(`${date}T${startTime}`);
+    const end = new Date(`${date}T${endTime}`);
+
+    if (end <= start) {
+      toast.error("Operation Failed: End time must be after start time.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const start = new Date(`${date}T${startTime}`);
-      const end = new Date(`${date}T${endTime}`);
-
       const slotData = {
         startTime: Timestamp.fromDate(start),
         endTime: Timestamp.fromDate(end),
@@ -45,10 +63,16 @@ export default function CreateSlotModal({
         createdAt: Timestamp.now(),
       };
 
-      await addDoc(collection(db, "tenants", tenantId, "events", eventId, "slots"), slotData);
+      await addDoc(
+        collection(db, "tenants", tenantId, "events", eventId, "slots"), 
+        slotData
+      );
+      
+      toast.success("Infrastructure Slot Initialized.");
       onClose();
     } catch (error) {
       console.error("Slot generation failed:", error);
+      toast.error("Critical: Slot deployment failed.");
     } finally {
       setLoading(false);
     }
@@ -83,7 +107,7 @@ export default function CreateSlotModal({
               required 
               value={date} 
               onChange={(e) => setDate(e.target.value)}
-              style={{ colorScheme: 'dark' }} // Makes native calendar icon/picker visible in dark mode
+              style={{ colorScheme: 'dark' }}
               className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-sm focus:border-orange-600 outline-none transition-all text-white cursor-pointer"
             />
           </div>
@@ -126,6 +150,7 @@ export default function CreateSlotModal({
             <input 
               type="number" 
               required 
+              min="1"
               value={capacity} 
               onChange={(e) => setCapacity(Number(e.target.value))}
               className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-sm focus:border-orange-600 outline-none transition-all text-white"
@@ -138,7 +163,12 @@ export default function CreateSlotModal({
             disabled={loading}
             className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-black font-black uppercase tracking-widest text-xs rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            {loading ? "Processing..." : (
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                Processing...
+              </span>
+            ) : (
               <>
                 <Zap size={16} fill="black"/> Initialize Slot
               </>
