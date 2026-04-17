@@ -125,7 +125,7 @@ export default function SuperAdminDashboard() {
                 key={t.id} 
                 className="group flex flex-col lg:flex-row lg:items-center justify-between p-3 bg-zinc-900/40 border border-zinc-800/40 hover:border-orange-600/20 rounded-xl transition-all gap-3"
               >
-                {/* Identity Section - Full Visibility */}
+                {/* Identity Section */}
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="h-9 w-9 bg-zinc-900/80 rounded-lg flex items-center justify-center text-zinc-600 group-hover:text-orange-500 transition-all border border-zinc-800 shrink-0">
                     <Building2 size={16} />
@@ -135,7 +135,8 @@ export default function SuperAdminDashboard() {
                       {t.name}
                     </h4>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-[8px] text-zinc-500 font-bold uppercase tracking-widest break-all">
+                      {/* FIXED: Removed 'uppercase' to show email as provided */}
+                      <p className="text-[9px] text-zinc-500 font-bold lowercase tracking-wider break-all">
                         {t.adminEmail}
                       </p>
                       <span className={`text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border ${t.plan === 'Enterprise' ? 'text-purple-500 border-purple-500/20' : 'text-blue-500 border-blue-500/20'}`}>
@@ -145,10 +146,11 @@ export default function SuperAdminDashboard() {
                   </div>
                 </div>
 
-                {/* Actions & Credentials - Secured Inside Card */}
+                {/* Actions & Credentials */}
                 <div className="flex flex-row items-center justify-between lg:justify-end gap-2 border-t border-zinc-800/50 lg:border-none pt-2 lg:pt-0">
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-black/40 rounded-lg border border-zinc-800/50 transition-all min-w-[100px]">
                     <Key size={12} className="text-orange-600 shrink-0" />
+                    {/* Fixed: Kept password uppercase as it's a token, but email is now original casing */}
                     <span className="font-mono text-[8px] text-orange-500/80 font-black tracking-[0.1em] uppercase">
                       {t.password || 'SECURED'}
                     </span>

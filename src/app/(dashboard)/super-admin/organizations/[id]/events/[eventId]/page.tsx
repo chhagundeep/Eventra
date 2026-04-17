@@ -18,7 +18,7 @@ import CreateSlotModal from "@/components/modals/CreateSlotModal";
 
 // Sub-components
 import SlotList from "@/components/slots/SlotList";
-import { EventraEvent, Trainer } from "@/types";
+import { EventraEvent, Trainer, Slot } from "@/types";
 
 interface PageProps {
   params: Promise<{ id: string; eventId: string }>;
@@ -44,6 +44,9 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
   const [trainers, setTrainers] = useState<Trainer[]>([]); 
   const [loading, setLoading] = useState(true);
   
+  // Slot Editing State
+  const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
+
   // Slideshow State
   const [currentImgIdx, setCurrentImgIdx] = useState(0);
 
@@ -150,7 +153,10 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
 
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => setIsSlotModalOpen(true)}
+            onClick={() => {
+              setSelectedSlot(null); // Ensure fresh form
+              setIsSlotModalOpen(true);
+            }}
             className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-black rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-orange-600/20"
           >
             <Zap size={14} fill="black" /> Deploy Slot
@@ -204,7 +210,6 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
               </div>
             </div>
             
-            {/* DYNAMIC DETAILS GRID */}
             <div className="p-10 grid grid-cols-2 md:grid-cols-4 gap-8 border-t border-zinc-900">
                 <DetailItem icon={<Calendar size={18}/>} label="Deployment Date" value={event?.date} />
                 <DetailItem icon={<MapPin size={18}/>} label="Location" value={event?.locationName || "Remote Node"} />
@@ -212,7 +217,6 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
                 <DetailItem icon={<Ticket size={18} className="text-orange-500"/>} label="Base Unit Price" value={`Rs. ${event?.price || 0}`} />
             </div>
 
-            {/* SUPER-ADMIN TELEMETRY OVERLAY */}
             <div className="px-10 pb-6 flex items-center gap-4">
                <div className="flex items-center gap-3 bg-zinc-900/30 px-4 py-2 rounded-xl border border-zinc-800/50">
                  <span className="text-[8px] font-black text-orange-600 uppercase tracking-widest">GPS_LAT</span>
@@ -226,6 +230,7 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
                  <a 
                    href={`https://www.google.com/maps?q=${event.latitude},${event.longitude}`}
                    target="_blank"
+                   rel="noopener noreferrer"
                    className="text-orange-500 hover:text-white transition-colors"
                  >
                    <Navigation size={16} />
@@ -245,9 +250,13 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
                 <Clock size={16} /> Active Operational Slots
              </h3>
              <SlotList 
-               eventId={eventId} 
-               tenantId={organizationId} 
-               price={event?.price || 0} 
+                eventId={eventId} 
+                tenantId={organizationId} 
+                price={event?.price || 0}
+                onEdit={(slot) => {
+                  setSelectedSlot(slot);
+                  setIsSlotModalOpen(true);
+                }}
              />
           </div>
         </div>
@@ -303,10 +312,15 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
 
       <CreateSlotModal 
         isOpen={isSlotModalOpen}
-        onClose={() => setIsSlotModalOpen(false)}
+        onClose={() => {
+          setIsSlotModalOpen(false);
+          setSelectedSlot(null);
+        }}
         eventId={eventId}
         tenantId={organizationId}
+        trainerId={event?.trainerId || ""}
         defaultCapacity={event?.capacity || 0}
+        initialData={selectedSlot}
       />
     </div>
   );

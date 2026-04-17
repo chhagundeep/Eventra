@@ -1,17 +1,20 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { collection, addDoc, Timestamp } from "firebase/firestore";
+import { collection, addDoc, updateDoc, doc, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { X, Zap, Calendar, Clock, Users } from "lucide-react";
+import { X, Zap, Calendar, Clock, Users, Save } from "lucide-react";
 import toast from "react-hot-toast";
+import { Slot } from "@/types";
 
 interface CreateSlotModalProps {
   isOpen: boolean;
   onClose: () => void;
   eventId: string;
   tenantId: string;
+  trainerId: string; // Added to match new Slot schema
   defaultCapacity: number;
+  initialData?: Slot | null;
 }
 
 export default function CreateSlotModal({ 
@@ -19,7 +22,9 @@ export default function CreateSlotModal({
   onClose, 
   eventId, 
   tenantId, 
-  defaultCapacity 
+  trainerId, // Use this in handleSubmit
+  defaultCapacity,
+  initialData 
 }: CreateSlotModalProps) {
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -27,22 +32,30 @@ export default function CreateSlotModal({
   const [capacity, setCapacity] = useState(defaultCapacity);
   const [loading, setLoading] = useState(false);
 
-  // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
-      setDate("");
-      setStartTime("");
-      setEndTime("");
-      setCapacity(defaultCapacity);
+      if (initialData) {
+        const start = initialData.startTime.toDate();
+        const end = initialData.endTime.toDate();
+
+        setDate(start.toISOString().split("T")[0]);
+        setStartTime(start.toTimeString().slice(0, 5));
+        setEndTime(end.toTimeString().slice(0, 5));
+        setCapacity(initialData.capacity);
+      } else {
+        setDate("");
+        setStartTime("");
+        setEndTime("");
+        setCapacity(defaultCapacity);
+      }
     }
-  }, [isOpen, defaultCapacity]);
+  }, [isOpen, initialData, defaultCapacity]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validation: Ensure end time is after start time
     const start = new Date(`${date}T${startTime}`);
     const end = new Date(`${date}T${endTime}`);
 
@@ -54,24 +67,35 @@ export default function CreateSlotModal({
     setLoading(true);
 
     try {
-      const slotData = {
+      // Build the data object based on our Slot interface
+      const slotData: Partial<Slot> = {
+        eventId,
+        tenantId,
+        trainerId,
         startTime: Timestamp.fromDate(start),
         endTime: Timestamp.fromDate(end),
         capacity: Number(capacity),
-        availableSeats: Number(capacity), 
+        // If editing, keep the existing availableSeats logic or adjust proportionately
+        availableSeats: initialData ? initialData.availableSeats : Number(capacity), 
         status: "active",
-        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
       };
 
-      await addDoc(
-        collection(db, "tenants", tenantId, "events", eventId, "slots"), 
-        slotData
-      );
+      if (initialData?.id) {
+        const slotRef = doc(db, "tenants", tenantId, "events", eventId, "slots", initialData.id);
+        await updateDoc(slotRef, slotData);
+        toast.success("Infrastructure Slot Updated.");
+      } else {
+        await addDoc(
+          collection(db, "tenants", tenantId, "events", eventId, "slots"), 
+          { ...slotData, createdAt: Timestamp.now() }
+        );
+        toast.success("Infrastructure Slot Initialized.");
+      }
       
-      toast.success("Infrastructure Slot Initialized.");
       onClose();
     } catch (error) {
-      console.error("Slot generation failed:", error);
+      console.error("Slot operation failed:", error);
       toast.error("Critical: Slot deployment failed.");
     } finally {
       setLoading(false);
@@ -85,7 +109,8 @@ export default function CreateSlotModal({
         {/* Header */}
         <div className="p-8 border-b border-zinc-900 flex justify-between items-center">
           <h2 className="text-xl font-black uppercase tracking-tighter italic text-orange-600">
-            Deploy <span className="text-white">New Slot</span>
+            {initialData ? "Reconfigure" : "Deploy"}{" "}
+            <span className="text-white">{initialData ? "Slot" : "New Slot"}</span>
           </h2>
           <button 
             onClick={onClose} 
@@ -97,7 +122,6 @@ export default function CreateSlotModal({
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
           
-          {/* Date Input */}
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
               <Calendar size={14} className="text-orange-500"/> Sequence Date
@@ -112,7 +136,6 @@ export default function CreateSlotModal({
             />
           </div>
 
-          {/* Time Inputs */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
@@ -142,7 +165,6 @@ export default function CreateSlotModal({
             </div>
           </div>
 
-          {/* Capacity Input */}
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
               <Users size={14} className="text-orange-500"/> Capacity Payload
@@ -157,7 +179,6 @@ export default function CreateSlotModal({
             />
           </div>
 
-          {/* Submit Button */}
           <button 
             type="submit" 
             disabled={loading}
@@ -166,11 +187,12 @@ export default function CreateSlotModal({
             {loading ? (
               <span className="flex items-center gap-2">
                 <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                Processing...
+                Synchronizing...
               </span>
             ) : (
               <>
-                <Zap size={16} fill="black"/> Initialize Slot
+                {initialData ? <Save size={16} fill="black"/> : <Zap size={16} fill="black"/>} 
+                {initialData ? "Update Infrastructure" : "Initialize Slot"}
               </>
             )}
           </button>

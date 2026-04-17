@@ -67,3 +67,18 @@ export interface EventraEvent {
   latitude: number;      // Decimal coordinate
   longitude: number;     // Decimal coordinate
 }
+
+// Inside src/types/index.ts
+export interface Slot {
+  id: string;
+  eventId: string;
+  tenantId: string;
+  trainerId: string;
+  startTime: Timestamp;
+  endTime: Timestamp;
+  capacity: number;
+  availableSeats: number;
+  status: "active" | "inactive" | "cancelled";
+  createdAt?: Timestamp | FieldValue | any; // Added for tracking
+  updatedAt?: Timestamp | FieldValue | any;
+}

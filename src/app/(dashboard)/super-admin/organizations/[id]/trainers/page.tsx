@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   UserCog, ArrowLeft, Search, Plus, 
   Mail, Phone, Shield, MoreVertical, 
-  Edit2, Trash2 
+  Edit2, Trash2, Filter, Activity
 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, deleteDoc } from "firebase/firestore";
@@ -28,29 +28,21 @@ export default function OrganizationTrainers() {
   const [loading, setLoading] = useState(true);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // --- STATE FOR MODALS & MENUS ---
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
 
-  /**
-   * REAL-TIME DATA SYNC
-   * Listens to the specific tenant's trainer sub-collection.
-   */
   useEffect(() => {
     if (!id) return;
-
     const trainersRef = collection(db, "tenants", id, "trainers");
-
     const unsubscribe = onSnapshot(trainersRef, (snapshot) => {
       const trainerData = snapshot.docs.map(doc => {
         const data = doc.data();
         return {
           id: doc.id,
           ...data,
-          // Standardize 'categories' for the UI, supporting legacy 'specialties'
           categories: data.categories || data.specialties || []
         } as Trainer;
       });
@@ -62,7 +54,6 @@ export default function OrganizationTrainers() {
       setLoading(false);
     });
 
-    // Clean up the listener when the component unmounts
     return () => unsubscribe();
   }, [id]);
 
@@ -81,14 +72,17 @@ export default function OrganizationTrainers() {
     }
   };
 
-  const filteredTrainers = trainers.filter(t => 
-    t.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTrainers = trainers.filter(t => {
+    const search = searchTerm.toLowerCase();
+    return (
+      t.name?.toLowerCase().includes(search) ||
+      t.email?.toLowerCase().includes(search) ||
+      t.phone?.toLowerCase().includes(search)
+    );
+  });
 
   return (
     <div className="space-y-8 pb-10">
-      {/* --- MODAL LAYER --- */}
       <AddTrainerDrawer 
         isOpen={isAddOpen} 
         onClose={() => setIsAddOpen(false)} 
@@ -140,16 +134,40 @@ export default function OrganizationTrainers() {
         </button>
       </div>
 
-      {/* --- SEARCH --- */}
-      <div className="relative group max-w-md">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-orange-500 transition-colors" size={18} />
-        <input 
-          type="text"
-          placeholder="Search trainers..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="bg-zinc-900/50 border border-zinc-800 rounded-2xl py-3.5 pl-12 pr-6 text-sm text-white focus:outline-none focus:border-orange-600/50 transition-all w-full backdrop-blur-md"
-        />
+      {/* --- UPDATED FILTER BLOCK --- */}
+      <div className="bg-zinc-900/30 border border-zinc-800/60 p-5 rounded-[2rem] backdrop-blur-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+             <div className="h-10 w-10 bg-zinc-800 rounded-xl flex items-center justify-center text-orange-500">
+                <Filter size={18} />
+             </div>
+             <div>
+                <p className="text-[10px] font-black text-white uppercase tracking-widest">Registry Filter</p>
+                <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter">Scanning {trainers.length} Personnel Records</p>
+             </div>
+          </div>
+
+          <div className="relative group flex-1 max-w-xl">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-orange-500 transition-colors" size={16} />
+            <input 
+              type="text"
+              placeholder="Search by name, email, or digital signature (phone)..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-black/40 border border-zinc-800 rounded-xl py-3 pl-12 pr-6 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-orange-600/40 focus:ring-1 focus:ring-orange-600/10 transition-all w-full"
+            />
+          </div>
+
+          <div className="hidden lg:flex items-center gap-4 px-4 border-l border-zinc-800/50 ml-2">
+             <div className="text-right">
+                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Signal Status</p>
+                <div className="flex items-center gap-2 justify-end">
+                   <span className="text-[10px] font-bold text-emerald-500 uppercase">Live Sync</span>
+                   <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                </div>
+             </div>
+          </div>
+        </div>
       </div>
 
       {/* --- GRID --- */}
@@ -165,15 +183,12 @@ export default function OrganizationTrainers() {
           ) : filteredTrainers.length === 0 ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="col-span-full py-20 border-2 border-dashed border-zinc-800 rounded-[3rem] text-center">
               <UserCog size={48} className="mx-auto text-zinc-800 mb-4" />
-              <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs">No trainers assigned</p>
+              <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs">No records found for &quot;{searchTerm}&quot;</p>
             </motion.div>
           ) : (
             filteredTrainers.map((trainer) => (
               <motion.div 
                 layout
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
                 key={trainer.id}
                 className={`bg-zinc-900/40 border border-zinc-800/50 p-6 rounded-[2.5rem] group hover:border-orange-600/30 transition-all relative overflow-visible backdrop-blur-sm shadow-xl ${
                   activeMenuId === trainer.id ? "z-30" : "z-10"
@@ -265,7 +280,7 @@ export default function OrganizationTrainers() {
                     <div className="h-8 w-8 rounded-xl bg-black/20 flex items-center justify-center border border-zinc-800/50">
                         <Mail size={14} className="text-orange-500/50" />
                     </div>
-                    <span className="text-xs font-medium truncate">{trainer.email}</span>
+                    <span className="text-xs font-medium truncate lowercase">{trainer.email}</span>
                   </div>
                   <div className="flex items-center gap-3 text-zinc-400">
                     <div className="h-8 w-8 rounded-xl bg-black/20 flex items-center justify-center border border-zinc-800/50">

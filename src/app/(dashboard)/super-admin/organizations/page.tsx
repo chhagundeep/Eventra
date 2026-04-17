@@ -14,20 +14,18 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import DeleteModal from "@/components/DeleteModal";
 
-// --- UPDATED LIVE METRICS COMPONENT ---
+// --- LIVE METRICS COMPONENT ---
 function LiveOrganizationMetrics({ tenantId }: { tenantId: string }) {
   const [metrics, setMetrics] = useState({ trainers: 0, users: 0 });
 
   useEffect(() => {
     if (!tenantId) return;
 
-    // 1. Listen to Trainers sub-collection
     const trainersRef = collection(db, "tenants", tenantId, "trainers");
     const unsubTrainers = onSnapshot(trainersRef, (snap) => {
       setMetrics(prev => ({ ...prev, trainers: snap.size }));
     }, (err) => console.error("Trainers Fetch Error:", err));
 
-    // 2. Listen to Users sub-collection with Role Filter
     const usersRef = collection(db, "tenants", tenantId, "users");
     const usersQuery = query(usersRef, where("role", "==", "user"));
     
@@ -61,7 +59,7 @@ interface Tenant {
   adminUid: string;
   adminEmail?: string;
   password?: string;
-  status?: "active" | "inactive";
+  status?: "active" | "inactive"; // Now used for dynamic status
 }
 
 export default function OrganizationsPage() {
@@ -136,7 +134,7 @@ export default function OrganizationsPage() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-orange-500 transition-colors" size={18} />
           <input 
             type="text"
-            placeholder="Filter network nodes..."
+            placeholder="Search by name or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="bg-zinc-900/50 border border-zinc-800 rounded-2xl py-3.5 pl-12 pr-6 text-sm text-white focus:outline-none focus:border-orange-600/50 transition-all w-full md:w-72"
@@ -176,7 +174,10 @@ export default function OrganizationsPage() {
                           <p className="font-bold text-base tracking-tight text-white">{org.name}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <ShieldCheck size={10} className="text-blue-500" />
-                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">{org.adminEmail}</p>
+                            {/* FIXED: Removed uppercase, used lowercase for standard technical appearance */}
+                            <p className="text-[10px] text-zinc-500 font-bold lowercase tracking-wider">
+                              {org.adminEmail}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -195,9 +196,12 @@ export default function OrganizationsPage() {
                     </td>
 
                     <td className="px-6 py-5">
+                      {/* DYNAMIC STATUS LOGIC */}
                       <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Node Active</span>
+                        <div className={`h-1.5 w-1.5 rounded-full animate-pulse ${org.status === 'inactive' ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${org.status === 'inactive' ? 'text-red-500' : 'text-emerald-500'}`}>
+                          {org.status === 'inactive' ? 'Node Offline' : 'Node Active'}
+                        </span>
                       </div>
                     </td>
 
