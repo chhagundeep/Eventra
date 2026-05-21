@@ -11,7 +11,7 @@ import {
   deleteDoc 
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { EventraEvent, Trainer } from "@/types";
+import { EventraEvent, Trainer, trainerFromFirestoreDoc } from "@/types";
 import { 
   Plus, 
   ArrowLeft, 
@@ -118,7 +118,11 @@ export default function OrganizationEventsPage({ params }: PageProps) {
 
       const trainersRef = collection(db, "tenants", organizationId, "trainers");
       const tSnapshot = await getDocs(trainersRef);
-      setTrainers(tSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Trainer)));
+      setTrainers(
+        tSnapshot.docs.map((d) =>
+          trainerFromFirestoreDoc(d.id, d.data() as Record<string, unknown>)
+        )
+      );
     } catch (error) {
       console.error("Fetch Error:", error);
     } finally {

@@ -11,7 +11,7 @@ import {
   collection, onSnapshot, query, orderBy, doc, deleteDoc, getDocs, where 
 } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
-import { Trainer } from "@/types"; // Import our standardized interface
+import { Trainer, trainerFromFirestoreDoc, trainerDisplayName, formatTrainerPrice } from "@/types";
 import AddTrainerDrawer from "@/components/modals/AddTrainerDrawer";
 import EditTrainerDrawer from "@/components/modals/EditTrainerDrawer";
 import DeleteModal from "@/components/DeleteModal";
@@ -43,14 +43,18 @@ export default function TrainerManagementPage() {
     const q = query(trainersRef, orderBy("createdAt", "desc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setTrainers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Trainer[]);
+      setTrainers(
+        snapshot.docs.map((d) =>
+          trainerFromFirestoreDoc(d.id, d.data() as Record<string, unknown>)
+        )
+      );
       setLoading(false);
     });
     return () => unsubscribe();
   }, [tenantId]);
 
   const filteredTrainers = trainers.filter((t) =>
-    (t.name?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
+    trainerDisplayName(t).toLowerCase().includes(searchQuery.toLowerCase()) ||
     (t.email?.toLowerCase() || "").includes(searchQuery.toLowerCase())
   );
 
@@ -68,7 +72,7 @@ export default function TrainerManagementPage() {
       if (!querySnapshot.empty) {
         const linkedEvent = querySnapshot.docs[0].data().title || "an active event";
         setRestrictionMessage(
-          `${trainer.name} is assigned to "${linkedEvent}". Reassign the event before removal.`
+          `${trainerDisplayName(trainer)} is assigned to "${linkedEvent}". Reassign the event before removal.`
         );
       }
       setDeletingStaff(trainer);
@@ -152,14 +156,14 @@ export default function TrainerManagementPage() {
                       <div className="relative h-12 w-12 rounded-2xl overflow-hidden border border-white/5 bg-zinc-800">
                         <Image 
                           src={trainer.image || DEFAULT_AVATAR} 
-                          alt={trainer.name} 
+                          alt={trainerDisplayName(trainer)} 
                           fill 
                           unoptimized 
                           className="object-cover" 
                         />
                       </div>
                       <div>
-                        <span className="font-black text-white text-sm uppercase italic tracking-tight block">{trainer.name}</span>
+                        <span className="font-black text-white text-sm uppercase italic tracking-tight block">{trainerDisplayName(trainer)}</span>
                         <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-tighter">ID: {trainer.uid.slice(0, 8)}</span>
                       </div>
                     </div>
@@ -172,6 +176,12 @@ export default function TrainerManagementPage() {
                   <td className="p-6">
                     <p className="text-zinc-300 text-sm font-medium">{trainer.email}</p>
                     <p className="text-zinc-500 text-xs mt-0.5">{trainer.phone}</p>
+                    <p className="text-zinc-500 text-xs mt-0.5">
+                      {trainer.experience ? `Experience: ${trainer.experience}` : "Experience: —"}
+                    </p>
+                    <p className="text-orange-500/90 text-xs font-bold mt-0.5">
+                      Personal Training Price: {formatTrainerPrice(trainer.price)}
+                    </p>
                   </td>
                   <td className="p-6 text-right">
                     <div className="flex justify-end gap-2">
@@ -219,7 +229,7 @@ export default function TrainerManagementPage() {
             onClose={() => { setDeletingStaff(null); setRestrictionMessage(null); }}
             onConfirm={confirmDelete}
             title={restrictionMessage ? "Node Lock" : "Purge Staff Node?"}
-            orgName={deletingStaff.name}
+            orgName={trainerDisplayName(deletingStaff)}
             loading={isDeleting}
             description={
               restrictionMessage ? (

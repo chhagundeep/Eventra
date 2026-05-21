@@ -18,7 +18,7 @@ import CreateSlotModal from "@/components/modals/CreateSlotModal";
 
 // Sub-components
 import SlotList from "@/components/slots/SlotList";
-import { EventraEvent, Trainer } from "@/types";
+import { EventraEvent, Trainer, trainerFromFirestoreDoc, trainerDisplayName } from "@/types";
 
 interface PageProps {
   params: Promise<{ eventId: string }>;
@@ -75,7 +75,11 @@ export default function AdminEventDetailPage({ params }: PageProps) {
     const fetchTrainers = async () => {
       const tRef = collection(db, "tenants", tenantId, "trainers");
       const snap = await getDocs(tRef);
-      setTrainers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Trainer)));
+      setTrainers(
+        snap.docs.map((d) =>
+          trainerFromFirestoreDoc(d.id, d.data() as Record<string, unknown>)
+        )
+      );
     };
     fetchTrainers();
 
@@ -143,6 +147,16 @@ export default function AdminEventDetailPage({ params }: PageProps) {
   );
 
   const images = event?.images || [];
+  const assignedTrainerIds =
+    event?.trainerIds && event.trainerIds.length > 0
+      ? event.trainerIds
+      : event?.trainerId
+        ? [event.trainerId]
+        : [];
+  const headTrainerId = event?.headTrainerId || event?.trainerId || "";
+  const assignedTrainerNames = assignedTrainerIds
+    .map((id) => trainerDisplayName(trainers.find((t) => t.id === id) ?? {}))
+    .filter(Boolean);
 
   return (
     <div className="min-h-screen bg-black text-white p-4 lg:p-8 font-sans animate-in fade-in duration-700">
@@ -289,8 +303,17 @@ export default function AdminEventDetailPage({ params }: PageProps) {
                 <h4 className="font-black uppercase tracking-widest text-[10px]">Command Lead</h4>
              </div>
              <p className="text-2xl font-black uppercase tracking-tighter leading-tight">
-                {event?.trainerId ? (trainers.find(t => t.id === event.trainerId)?.name || "Lead Assigned") : "Awaiting Assignment"}
+                {headTrainerId
+                  ? trainerDisplayName(
+                      trainers.find((t) => t.id === headTrainerId) ?? {}
+                    ) || "Lead Assigned"
+                  : "Awaiting Assignment"}
              </p>
+             {assignedTrainerNames.length > 0 && (
+               <p className="mt-3 text-xs font-bold uppercase tracking-wider text-black/80">
+                 Team: {assignedTrainerNames.join(", ")}
+               </p>
+             )}
           </div>
         </div>
       </div>
@@ -317,6 +340,7 @@ export default function AdminEventDetailPage({ params }: PageProps) {
         onClose={() => setIsSlotModalOpen(false)}
         eventId={eventId}
         tenantId={tenantId || ""}
+        trainerId={headTrainerId}
         defaultCapacity={event?.capacity || 0}
       />
     </div>

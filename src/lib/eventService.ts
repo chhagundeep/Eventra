@@ -8,7 +8,6 @@ import {
   getDocs,
   query,
   where,
-  orderBy,
   serverTimestamp 
 } from "firebase/firestore";
 import { EventraEvent, Category } from "@/types";
@@ -18,16 +17,14 @@ import { EventraEvent, Category } from "@/types";
  */
 export const getCategories = async (): Promise<Category[]> => {
   try {
-    const q = query(
-      collection(db, "categories"), 
-      where("isActive", "==", true),
-      orderBy("name", "asc")
-    );
+    // Single-field equality only — avoids needing a composite index with orderBy("name").
+    const q = query(collection(db, "categories"), where("isActive", "==", true));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
+    const list = querySnapshot.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
     })) as Category[];
+    return list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   } catch (error) {
     console.error("Error fetching categories:", error);
     return [];

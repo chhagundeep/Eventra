@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { X, Upload, Loader2, CheckCircle2, Copy, Check, Tag } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { db, auth } from "@/lib/firebase";
-import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
+import { getCategories } from "@/lib/eventService";
 import { Category } from "@/types";
 
 const generateTempPassword = () => {
@@ -53,19 +53,14 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess, tenantId 
     name: "",
     email: "",
     phone: "",
+    experience: "",
+    price: "",
   });
 
   useEffect(() => {
     const fetchCats = async () => {
       try {
-        const q = query(
-          collection(db, "categories"), 
-          where("isActive", "==", true),
-          orderBy("name", "asc")
-        );
-        const snap = await getDocs(q);
-        const cats = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Category[];
-        setAvailableCategories(cats);
+        setAvailableCategories(await getCategories());
       } catch (err) {
         console.error("Error loading categories:", err);
       }
@@ -104,6 +99,11 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess, tenantId 
     if (!tenantId) return alert("Critical Error: No Tenant ID provided from the organization view.");
     if (selectedCategoryIds.length === 0) return alert("Please select at least one category.");
 
+    const personalPrice = Number.parseFloat(formData.price);
+    if (formData.price.trim() === "" || Number.isNaN(personalPrice) || personalPrice < 0) {
+      return alert("Please enter a valid personal training price (0 or greater).");
+    }
+
     setLoading(true);
     const tempPassword = generateTempPassword();
 
@@ -117,9 +117,11 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess, tenantId 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: formData.name,
+          trainer_name: formData.name,
           email: formData.email,
           phone: formData.phone,
+          experience: formData.experience,
+          price: personalPrice,
           password: tempPassword,
           tenantId, 
           specialties: selectedCategoryIds,
@@ -150,7 +152,7 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess, tenantId 
     setImagePreview(null);
     setSelectedFile(null);
     setSelectedCategoryIds([]);
-    setFormData({ name: "", email: "", phone: "" });
+    setFormData({ name: "", email: "", phone: "", experience: "", price: "" });
     onSuccess();
     onClose();
   };
@@ -213,12 +215,17 @@ export default function AddTrainerDrawer({ isOpen, onClose, onSuccess, tenantId 
                     { label: "Full Name", key: "name", type: "text" },
                     { label: "Email Address", key: "email", type: "email" },
                     { label: "Phone Number", key: "phone", type: "tel" },
+                    { label: "Experience", key: "experience", type: "text" },
+                    { label: "Personal Training Price", key: "price", type: "number" },
                   ].map((f) => (
                     <div key={f.key} className="space-y-2">
                       <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1">{f.label}</label>
                       <input 
                         required 
-                        type={f.type} 
+                        type={f.type}
+                        min={f.type === "number" ? 0 : undefined}
+                        step={f.type === "number" ? "0.01" : undefined}
+                        placeholder={f.type === "number" ? "e.g. 75" : undefined}
                         className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 px-4 text-sm text-white focus:border-orange-600 outline-none transition-colors" 
                         value={(formData as any)[f.key]}
                         onChange={(e) => setFormData({ ...formData, [f.key]: e.target.value })} 

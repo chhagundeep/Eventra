@@ -4,17 +4,10 @@ import React, { useState, useEffect } from "react";
 import { X, Upload, Loader2, Tag, Save } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "@/lib/firebase";
-import { 
-  doc, 
-  collection, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
-  writeBatch 
-} from "firebase/firestore";
+import { doc, collection, writeBatch } from "firebase/firestore";
+import { getCategories } from "@/lib/eventService";
 import { useAuth } from "@/hooks/useAuth";
-import { Category, Trainer } from "@/types";
+import { Category, Trainer, trainerDisplayName } from "@/types";
 import toast from "react-hot-toast";
 
 /**
@@ -64,6 +57,8 @@ export default function EditTrainerDrawer({
     name: "",
     email: "",
     phone: "",
+    experience: "",
+    price: "",
   });
 
   // --- INITIALIZE & CLEANUP DATA ---
@@ -74,23 +69,20 @@ export default function EditTrainerDrawer({
       try {
         // Fetch available categories for the selection list
         if (availableCategories.length === 0) {
-          const q = query(
-            collection(db, "categories"), 
-            where("isActive", "==", true),
-            orderBy("name", "asc")
-          );
-          const snap = await getDocs(q);
+          const cats = await getCategories();
           if (isMounted) {
-            setAvailableCategories(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Category[]);
+            setAvailableCategories(cats);
           }
         }
 
         // Fill form with current trainer data
         if (trainer && isMounted) {
           setFormData({
-            name: trainer.name || "",
+            name: trainerDisplayName(trainer),
             email: trainer.email || "",
             phone: trainer.phone || "",
+            experience: trainer.experience || "",
+            price: trainer.price !== undefined ? String(trainer.price) : "",
           });
           
           /**
@@ -112,7 +104,7 @@ export default function EditTrainerDrawer({
       initData();
     } else {
       // Clear state on close to prevent data flicker for the next item
-      setFormData({ name: "", email: "", phone: "" });
+      setFormData({ name: "", email: "", phone: "", experience: "", price: "" });
       setImagePreview(null);
       setSelectedCategoryIds([]);
     }
@@ -145,6 +137,11 @@ export default function EditTrainerDrawer({
     if (!effectiveTenantId || !trainer) return toast.error("Tenant isolation context missing");
     if (selectedCategoryIds.length === 0) return toast.error("Select at least one specialty");
 
+    const personalPrice = Number.parseFloat(formData.price);
+    if (formData.price.trim() === "" || Number.isNaN(personalPrice) || personalPrice < 0) {
+      return toast.error("Enter a valid personal training price (0 or greater)");
+    }
+
     setLoading(true);
     const batch = writeBatch(db);
 
@@ -159,15 +156,20 @@ export default function EditTrainerDrawer({
       // 1. Sync Global User Profile
       const userRef = doc(db, "users", trainer.uid);
       batch.update(userRef, {
-        name: formData.name,
+        trainer_name: formData.name,
         email: formData.email,
+        experience: formData.experience,
       });
 
       // 2. Sync Tenant-Specific Staff Record
       const trainerDocRef = doc(db, "tenants", effectiveTenantId, "trainers", trainer.id);
       
       batch.update(trainerDocRef, {
-        ...formData,
+        trainer_name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        experience: formData.experience,
+        price: personalPrice,
         /**
          * MANDATORY FIX: 
          * Using 'categories' key exclusively to prevent 'specialities' column creation.
@@ -263,12 +265,17 @@ export default function EditTrainerDrawer({
                   { label: "Display Name", key: "name", type: "text" },
                   { label: "Email Address", key: "email", type: "email" },
                   { label: "Phone Number", key: "phone", type: "tel" },
+                  { label: "Experience", key: "experience", type: "text" },
+                  { label: "Personal Training Price", key: "price", type: "number" },
                 ].map((f) => (
                   <div key={f.key} className="space-y-2">
                     <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1">{f.label}</label>
                     <input 
                       required 
-                      type={f.type} 
+                      type={f.type}
+                      min={f.type === "number" ? 0 : undefined}
+                      step={f.type === "number" ? "0.01" : undefined}
+                      placeholder={f.type === "number" ? "e.g. 75" : undefined}
                       className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl py-4 px-5 text-sm text-white focus:border-orange-600/50 focus:outline-none transition-all" 
                       value={(formData as any)[f.key]}
                       onChange={(e) => setFormData({ ...formData, [f.key]: e.target.value })} 

@@ -10,7 +10,7 @@ import DeleteConfirmModal from "@/components/modals/DeleteConfirmModal";
 import { db } from "@/lib/firebase";
 import { collection, query, doc, deleteDoc, onSnapshot, orderBy } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
-import { EventraEvent, Trainer } from "@/types";
+import { EventraEvent, Trainer, trainerFromFirestoreDoc } from "@/types";
 import toast from "react-hot-toast";
 
 // --- REFINED ID EXTRACTION ---
@@ -169,7 +169,11 @@ export default function EventsManagerPage() {
 
     const trainersRef = collection(db, "tenants", tenantId, "trainers");
     const unsubTrainers = onSnapshot(trainersRef, (snap) => {
-      setTrainers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Trainer)));
+      setTrainers(
+        snap.docs.map((d) =>
+          trainerFromFirestoreDoc(d.id, d.data() as Record<string, unknown>)
+        )
+      );
     });
 
     const eventsRef = collection(db, "tenants", tenantId, "events");

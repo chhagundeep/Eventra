@@ -18,7 +18,7 @@ import CreateSlotModal from "@/components/modals/CreateSlotModal";
 
 // Sub-components
 import SlotList from "@/components/slots/SlotList";
-import { EventraEvent, Trainer, Slot } from "@/types";
+import { EventraEvent, Trainer, Slot, trainerFromFirestoreDoc, trainerDisplayName } from "@/types";
 
 interface PageProps {
   params: Promise<{ id: string; eventId: string }>;
@@ -62,7 +62,11 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
     try {
       const trainersRef = collection(db, "tenants", organizationId, "trainers");
       const snap = await getDocs(trainersRef);
-      setTrainers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Trainer)));
+      setTrainers(
+        snap.docs.map((d) =>
+          trainerFromFirestoreDoc(d.id, d.data() as Record<string, unknown>)
+        )
+      );
     } catch (error) {
       console.error("Critical: Failed to fetch trainers for node:", error);
     }
@@ -134,6 +138,16 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
   );
 
   const images = event?.images || [];
+  const assignedTrainerIds =
+    event?.trainerIds && event.trainerIds.length > 0
+      ? event.trainerIds
+      : event?.trainerId
+        ? [event.trainerId]
+        : [];
+  const headTrainerId = event?.headTrainerId || event?.trainerId || "";
+  const assignedTrainerNames = assignedTrainerIds
+    .map((id) => trainerDisplayName(trainers.find((t) => t.id === id) ?? {}))
+    .filter(Boolean);
 
   return (
     <div className="min-h-screen bg-black text-white p-4 lg:p-8 font-sans">
@@ -288,8 +302,17 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
              </div>
              <p className="text-xl font-black uppercase tracking-tighter leading-tight">
                 Assigned Specialist: <br />
-                {event?.trainerId ? (trainers.find(t => t.id === event.trainerId)?.name || "Resource Active") : "Unassigned"}
+                {headTrainerId
+                  ? trainerDisplayName(
+                      trainers.find((t) => t.id === headTrainerId) ?? {}
+                    ) || "Resource Active"
+                  : "Unassigned"}
              </p>
+             {assignedTrainerNames.length > 0 && (
+               <p className="mt-3 text-xs font-bold uppercase tracking-wider text-black/80">
+                 Team: {assignedTrainerNames.join(", ")}
+               </p>
+             )}
           </div>
         </div>
       </div>
@@ -318,7 +341,7 @@ export default function SuperAdminEventDeepDivePage({ params }: PageProps) {
         }}
         eventId={eventId}
         tenantId={organizationId}
-        trainerId={event?.trainerId || ""}
+        trainerId={headTrainerId}
         defaultCapacity={event?.capacity || 0}
         initialData={selectedSlot}
       />

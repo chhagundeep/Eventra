@@ -4,26 +4,51 @@ import admin from "firebase-admin";
 
 export async function POST(request: Request) {
   try {
-    const { 
-      email, 
-      password, 
-      name, 
-      phone, 
-      tenantId, 
-      image, 
-      specialties, 
-      createdBy 
-    } = await request.json();
+    const body = await request.json();
+    const {
+      email,
+      password,
+      trainer_name,
+      name: legacyName,
+      phone,
+      experience,
+      tenantId,
+      image,
+      price,
+      specialties,
+      createdBy,
+    } = body;
+
+    const parsedPrice =
+      typeof price === "number"
+        ? price
+        : typeof price === "string" && price.trim() !== ""
+          ? Number.parseFloat(price)
+          : undefined;
+    const personalPrice =
+      parsedPrice !== undefined && !Number.isNaN(parsedPrice) && parsedPrice >= 0
+        ? parsedPrice
+        : undefined;
+
+    const trainerName =
+      typeof trainer_name === "string" && trainer_name.length > 0
+        ? trainer_name
+        : typeof legacyName === "string"
+          ? legacyName
+          : "";
 
     if (!tenantId) {
       return NextResponse.json({ error: "Tenant ID is required for sub-collection isolation." }, { status: 400 });
+    }
+    if (!trainerName) {
+      return NextResponse.json({ error: "trainer_name is required." }, { status: 400 });
     }
 
     // 1. Create the Firebase Auth Account
     const userRecord = await adminAuth.createUser({
       email,
       password,
-      displayName: name,
+      displayName: trainerName,
     });
 
     // 2. Set Custom Claims (Essential for Security Rules)
@@ -40,7 +65,8 @@ export async function POST(request: Request) {
     batch.set(userRef, {
       uid: userRecord.uid,
       email,
-      name,
+      trainer_name: trainerName,
+      experience: typeof experience === "string" ? experience : "",
       role: "trainer",
       tenantId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -56,10 +82,12 @@ export async function POST(request: Request) {
 
     batch.set(trainerRef, {
       uid: userRecord.uid,
-      name,
+      trainer_name: trainerName,
       email,
       phone,
       image,
+      ...(personalPrice !== undefined ? { price: personalPrice } : {}),
+      experience: typeof experience === "string" ? experience : "",
       categories: specialties || [], // Match the 'categories' field in your Types
       role: "trainer",
       status: "Active",

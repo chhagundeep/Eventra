@@ -32,7 +32,13 @@ export default function LoginPage() {
         setError("User profile not found in system.");
       }
     } catch (err: any) {
-      setError("Invalid credentials. Please try again.");
+      const code = err?.code ? String(err.code) : "";
+      const msg = err?.message ? String(err.message) : "";
+      setError(
+        code || msg
+          ? `Login failed: ${code || msg}`
+          : "Login failed. Please try again."
+      );
     }
   };
 

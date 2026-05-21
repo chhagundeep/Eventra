@@ -4,10 +4,9 @@ import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Loader2, Upload, Trash2, MapPin, Users } from "lucide-react";
 import { CldUploadWidget } from "next-cloudinary";
-import { createEvent, updateEvent } from "@/lib/eventService";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where, serverTimestamp, orderBy } from "firebase/firestore";
-import { EventraEvent, Category, Trainer } from "@/types";
+import { createEvent, updateEvent, getCategories } from "@/lib/eventService";
+import { serverTimestamp } from "firebase/firestore";
+import { EventraEvent, Category, Trainer, trainerDisplayName, formatTrainerPrice } from "@/types";
 import toast from "react-hot-toast";
 
 interface CreateEventModalProps {
@@ -48,6 +47,8 @@ export default function CreateEventModal({
     capacity: 20,
     price: 0,
     trainerId: "",
+    trainerIds: [] as string[],
+    headTrainerId: "",
     images: [] as string[],
     status: "active" as "active" | "completed" | "cancelled",
     locationName: "",
@@ -65,9 +66,7 @@ export default function CreateEventModal({
   useEffect(() => {
     async function fetchCategories() {
       try {
-        const q = query(collection(db, "categories"), where("isActive", "==", true), orderBy("name", "asc"));
-        const querySnapshot = await getDocs(q);
-        const cats = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Category[];
+        const cats = await getCategories();
         setDbCategories(cats);
         if (!initialData && cats.length > 0 && !formData.category) {
           setFormData(prev => ({ ...prev, category: cats[0].id }));
@@ -90,6 +89,13 @@ export default function CreateEventModal({
         capacity: initialData.capacity || 20,
         price: initialData.price || 0,
         trainerId: initialData.trainerId || "",
+        trainerIds:
+          Array.isArray(initialData.trainerIds) && initialData.trainerIds.length > 0
+            ? initialData.trainerIds
+            : initialData.trainerId
+              ? [initialData.trainerId]
+              : [],
+        headTrainerId: initialData.headTrainerId || initialData.trainerId || "",
         images: initialData.images || [],
         status: initialData.status || "active",
         locationName: initialData.locationName || "",
@@ -101,22 +107,35 @@ export default function CreateEventModal({
         ...prev,
         category: prev.category || (dbCategories.length > 0 ? dbCategories[0].id : ""),
         trainerId: prev.trainerId || (trainers.length > 0 ? trainers[0].id : ""),
+        trainerIds: prev.trainerIds.length > 0 ? prev.trainerIds : (trainers.length > 0 ? [trainers[0].id] : []),
+        headTrainerId: prev.headTrainerId || (trainers.length > 0 ? trainers[0].id : ""),
       }));
     }
   }, [isOpen, initialData, dbCategories.length, trainers.length]);
 
   if (!isOpen || !mounted) return null;
 
+  const categoryNameMap = dbCategories.reduce<Record<string, string>>((acc, cat) => {
+    acc[cat.id] = cat.name;
+    return acc;
+  }, {});
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.category) return toast.error("Select a valid category.");
     if (!formData.locationName) return toast.error("Location Protocol is required.");
     if (formData.images.length === 0) return toast.error("Visual assets are required.");
+    if (formData.trainerIds.length === 0) return toast.error("Select at least one trainer.");
+    if (!formData.headTrainerId) return toast.error("Mark one head trainer.");
+    if (!formData.trainerIds.includes(formData.headTrainerId)) {
+      return toast.error("Head trainer must be selected in assigned trainers.");
+    }
 
     setLoading(true);
     try {
       const submissionData = {
         ...formData,
+        trainerId: formData.headTrainerId,
         tenantId: tenantId
       };
 
@@ -139,7 +158,9 @@ export default function CreateEventModal({
         
         setFormData({ 
           title: "", description: "", date: "", category: dbCategories[0]?.id || "", 
-          capacity: 20, price: 0, trainerId: trainers[0]?.id || "", 
+          capacity: 20, price: 0, trainerId: trainers[0]?.id || "",
+          trainerIds: trainers[0]?.id ? [trainers[0].id] : [],
+          headTrainerId: trainers[0]?.id || "",
           images: [], status: "active", locationName: "", latitude: 0, longitude: 0 
         });
       }
@@ -212,11 +233,65 @@ export default function CreateEventModal({
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Assigned Trainer</label>
-                  <select required className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl px-5 py-4 text-white outline-none" value={formData.trainerId} onChange={(e) => setFormData({...formData, trainerId: e.target.value})}>
-                    <option value="" disabled>Select Staff</option>
-                    {trainers.map((t) => <option key={t.id} value={t.id} className="bg-zinc-950">{t.name}</option>)}
-                  </select>
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Assigned Trainers</label>
+                  <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-3 max-h-52 overflow-y-auto space-y-2">
+                    {trainers.length === 0 ? (
+                      <p className="text-xs text-zinc-500 px-2 py-2">No trainers available.</p>
+                    ) : (
+                      trainers.map((t) => {
+                        const checked = formData.trainerIds.includes(t.id);
+                        const categoryLabels = (t.categories || []).map((id) => categoryNameMap[id] || id);
+                        return (
+                          <label key={t.id} className="flex items-center justify-between gap-3 px-2 py-2 rounded-xl hover:bg-zinc-800/50 cursor-pointer">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      trainerIds: [...prev.trainerIds, t.id],
+                                      headTrainerId: prev.headTrainerId || t.id,
+                                      trainerId: prev.trainerId || t.id,
+                                    }));
+                                  } else {
+                                    setFormData((prev) => {
+                                      const nextTrainerIds = prev.trainerIds.filter((id) => id !== t.id);
+                                      const nextHead = prev.headTrainerId === t.id ? (nextTrainerIds[0] || "") : prev.headTrainerId;
+                                      return {
+                                        ...prev,
+                                        trainerIds: nextTrainerIds,
+                                        headTrainerId: nextHead,
+                                        trainerId: nextHead,
+                                      };
+                                    });
+                                  }
+                                }}
+                              />
+                              <div className="min-w-0">
+                                <span className="text-sm text-white truncate block">{trainerDisplayName(t)}</span>
+                                <span className="text-[10px] text-zinc-500 truncate block">
+                                  {categoryLabels.length > 0 ? categoryLabels.join(", ") : "No categories"}
+                                  {t.price !== undefined ? ` · Personal ${formatTrainerPrice(t.price)}` : ""}
+                                </span>
+                              </div>
+                            </div>
+                            <label className="flex items-center gap-1 text-[10px] text-zinc-400 uppercase tracking-widest">
+                              <input
+                                type="radio"
+                                name="headTrainer"
+                                checked={formData.headTrainerId === t.id}
+                                disabled={!checked}
+                                onChange={() => setFormData((prev) => ({ ...prev, headTrainerId: t.id, trainerId: t.id }))}
+                              />
+                              Head
+                            </label>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

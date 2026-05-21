@@ -11,7 +11,7 @@ import {
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, deleteDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
-import { Trainer } from "@/types";
+import { Trainer, trainerFromFirestoreDoc, trainerDisplayName, formatTrainerPrice } from "@/types";
 
 // --- COMPONENTS ---
 import EditTrainerDrawer from "@/components/modals/EditTrainerDrawer";
@@ -38,14 +38,9 @@ export default function OrganizationTrainers() {
     if (!id) return;
     const trainersRef = collection(db, "tenants", id, "trainers");
     const unsubscribe = onSnapshot(trainersRef, (snapshot) => {
-      const trainerData = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          categories: data.categories || data.specialties || []
-        } as Trainer;
-      });
+      const trainerData = snapshot.docs.map((d) =>
+        trainerFromFirestoreDoc(d.id, d.data() as Record<string, unknown>)
+      );
       setTrainers(trainerData);
       setLoading(false);
     }, (error) => {
@@ -75,7 +70,7 @@ export default function OrganizationTrainers() {
   const filteredTrainers = trainers.filter(t => {
     const search = searchTerm.toLowerCase();
     return (
-      t.name?.toLowerCase().includes(search) ||
+      trainerDisplayName(t).toLowerCase().includes(search) ||
       t.email?.toLowerCase().includes(search) ||
       t.phone?.toLowerCase().includes(search)
     );
@@ -102,7 +97,7 @@ export default function OrganizationTrainers() {
         isOpen={isDeleteOpen}
         onClose={() => setIsDeleteOpen(false)}
         onConfirm={handleDeleteConfirm}
-        orgName={selectedTrainer?.name || "this staff member"}
+        orgName={selectedTrainer ? trainerDisplayName(selectedTrainer) : "this staff member"}
         loading={deleteLoading}
         title="Revoke Staff Access?"
       />
@@ -200,7 +195,7 @@ export default function OrganizationTrainers() {
                       {trainer.image ? (
                         <img 
                           src={trainer.image} 
-                          alt={trainer.name} 
+                          alt={trainerDisplayName(trainer)} 
                           className="h-full w-full object-cover"
                         />
                       ) : (
@@ -210,7 +205,7 @@ export default function OrganizationTrainers() {
                     
                     <div>
                       <h4 className="font-bold text-white text-lg tracking-tight truncate max-w-[150px]">
-                        {trainer.name || "Unknown"}
+                        {trainerDisplayName(trainer) || "Unknown"}
                       </h4>
                       <div className="flex items-center gap-2 mt-1">
                         <Shield size={12} className="text-emerald-500" />
@@ -287,6 +282,22 @@ export default function OrganizationTrainers() {
                         <Phone size={14} className="text-orange-500/50" />
                     </div>
                     <span className="text-xs font-medium tracking-tighter">{trainer.phone || "No contact linked"}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-zinc-400">
+                    <div className="h-8 w-8 rounded-xl bg-black/20 flex items-center justify-center border border-zinc-800/50">
+                        <Activity size={14} className="text-orange-500/50" />
+                    </div>
+                    <span className="text-xs font-medium tracking-tighter">
+                      {trainer.experience ? `Experience: ${trainer.experience}` : "Experience: —"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-orange-500/90">
+                    <div className="h-8 w-8 rounded-xl bg-black/20 flex items-center justify-center border border-zinc-800/50">
+                        <span className="text-[10px] font-black">$</span>
+                    </div>
+                    <span className="text-xs font-bold tracking-tighter">
+                      Personal: {formatTrainerPrice(trainer.price)}
+                    </span>
                   </div>
                 </div>
               </motion.div>
