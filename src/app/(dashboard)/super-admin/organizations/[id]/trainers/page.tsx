@@ -293,7 +293,7 @@ export default function OrganizationTrainers() {
                   </div>
                   <div className="flex items-center gap-3 text-orange-500/90">
                     <div className="h-8 w-8 rounded-xl bg-black/20 flex items-center justify-center border border-zinc-800/50">
-                        <span className="text-[10px] font-black">$</span>
+                        <span className="text-[10px] font-black">₹</span>
                     </div>
                     <span className="text-xs font-bold tracking-tighter">
                       Personal: {formatTrainerPrice(trainer.price)}

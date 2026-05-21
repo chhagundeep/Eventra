@@ -266,7 +266,7 @@ export default function EditTrainerDrawer({
                   { label: "Email Address", key: "email", type: "email" },
                   { label: "Phone Number", key: "phone", type: "tel" },
                   { label: "Experience", key: "experience", type: "text" },
-                  { label: "Personal Training Price", key: "price", type: "number" },
+                  { label: "Personal Training Price (₹)", key: "price", type: "number" },
                 ].map((f) => (
                   <div key={f.key} className="space-y-2">
                     <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1">{f.label}</label>
@@ -275,7 +275,7 @@ export default function EditTrainerDrawer({
                       type={f.type}
                       min={f.type === "number" ? 0 : undefined}
                       step={f.type === "number" ? "0.01" : undefined}
-                      placeholder={f.type === "number" ? "e.g. 75" : undefined}
+                      placeholder={f.type === "number" ? "e.g. 1500" : undefined}
                       className="w-full bg-zinc-900/50 border border-white/5 rounded-2xl py-4 px-5 text-sm text-white focus:border-orange-600/50 focus:outline-none transition-all" 
                       value={(formData as any)[f.key]}
                       onChange={(e) => setFormData({ ...formData, [f.key]: e.target.value })} 

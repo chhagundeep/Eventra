@@ -71,12 +71,12 @@ export function trainerFromFirestoreDoc(
   } as Trainer;
 }
 
-/** Format trainer personal session price for display. */
+/** Format trainer personal session price for display (INR). */
 export function formatTrainerPrice(price?: number): string {
   if (price === undefined || Number.isNaN(price)) return "—";
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency: "USD",
+    currency: "INR",
     maximumFractionDigits: 0,
   }).format(price);
 }
