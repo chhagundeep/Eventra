@@ -13,6 +13,11 @@ import {
 import Link from "next/link";
 import toast from "react-hot-toast";
 import DeleteModal from "@/components/DeleteModal";
+import {
+  isAppMemberRole,
+  normalizeUserRole,
+  shouldIncludeRootUser,
+} from "@/lib/organizationUsers";
 
 // --- LIVE METRICS COMPONENT ---
 function LiveOrganizationMetrics({ tenantId }: { tenantId: string }) {
@@ -26,16 +31,47 @@ function LiveOrganizationMetrics({ tenantId }: { tenantId: string }) {
       setMetrics(prev => ({ ...prev, trainers: snap.size }));
     }, (err) => console.error("Trainers Fetch Error:", err));
 
+    let rootMemberCount = 0;
+    let tenantSubMemberCount = 0;
+
+    const updateUserCount = () => {
+      setMetrics((prev) => ({
+        ...prev,
+        users: Math.max(rootMemberCount, tenantSubMemberCount),
+      }));
+    };
+
+    const unsubRootMembers = onSnapshot(
+      collection(db, "users"),
+      (snap) => {
+        rootMemberCount = snap.docs.filter((d) => {
+          const data = d.data() as Record<string, unknown>;
+          return (
+            isAppMemberRole(normalizeUserRole(data)) &&
+            shouldIncludeRootUser(data, tenantId)
+          );
+        }).length;
+        updateUserCount();
+      },
+      (err) => console.error("Root users fetch error:", err)
+    );
+
     const usersRef = collection(db, "tenants", tenantId, "users");
     const usersQuery = query(usersRef, where("role", "==", "user"));
-    
-    const unsubUsers = onSnapshot(usersQuery, (snap) => {
-      setMetrics(prev => ({ ...prev, users: snap.size }));
-    }, (err) => console.error("Users Fetch Error:", err));
+
+    const unsubTenantUsers = onSnapshot(
+      usersQuery,
+      (snap) => {
+        tenantSubMemberCount = snap.size;
+        updateUserCount();
+      },
+      (err) => console.error("Tenant users fetch error:", err)
+    );
 
     return () => {
       unsubTrainers();
-      unsubUsers();
+      unsubRootMembers();
+      unsubTenantUsers();
     };
   }, [tenantId]);
 
