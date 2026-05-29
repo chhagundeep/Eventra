@@ -6,6 +6,7 @@ import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Logo from "@/components/Logo";
 import { motion } from "framer-motion";
 import { ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
 
@@ -47,8 +48,8 @@ export default function LoginPage() {
       {/* LEFT SECTION: Branding */}
       <div className="relative hidden lg:flex lg:w-1/2 flex-col justify-between p-16 border-r border-zinc-800/50">
         <motion.div
-          initial={{ scale: 1.1, opacity: 0 }}
-          animate={{ scale: 1, opacity: 0.35 }}
+          initial={{ scale: 1.05, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 1.5, ease: "easeOut" }}
           className="absolute inset-0"
         >
@@ -61,25 +62,20 @@ export default function LoginPage() {
           />
         </motion.div>
 
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/60 to-transparent z-0" />
+        {/* Light scrim — photo visible, still dark enough for white text */}
+        <div className="absolute inset-0 bg-[#0a0a0a]/42 z-0" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a]/90 via-[#0a0a0a]/20 to-transparent z-0" />
 
         <motion.div
-        initial={{ x: -20, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="relative z-10 flex items-center gap-4"
+          initial={{ x: -20, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="relative z-10"
         >
-          <div className="h-12 w-12 rounded-2xl overflow-hidden shadow-orange-900/40 shadow-2xl">
-          <Image
-          src="/logo.png"
-          alt="Eventra Logo"
-          width={48}
-          height={48}
-          className="object-contain"   
-          priority                   
+          <Logo
+            size={48}
+            textClassName="text-3xl font-black tracking-tighter italic text-white"
           />
-          </div>
-          <span className="text-3xl font-black tracking-tighter italic text-white">Eventra</span>
         </motion.div>
 
         <motion.div
@@ -96,20 +92,18 @@ export default function LoginPage() {
         </motion.div>
       </div>
 
-      {/* RIGHT SECTION: Form */}
+      {/* RIGHT SECTION: Form (plain div — avoids motion + extension hydration mismatches) */}
       <div className="flex w-full lg:w-1/2 flex-col items-center justify-center px-8 md:px-20 bg-[#0a0a0a] relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="w-full max-w-md space-y-10"
-        >
+        <div className="w-full max-w-md space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="lg:hidden flex justify-center pb-2">
+            <Logo size={44} textClassName="text-2xl font-black tracking-tighter italic text-white" />
+          </div>
           <div className="space-y-3 text-left">
             <h1 className="text-4xl font-black tracking-tight text-white">Sign In</h1>
             <p className="text-zinc-500 font-medium">Welcome back to the Eventra platform.</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-6">
+          <form onSubmit={handleLogin} className="space-y-6" suppressHydrationWarning>
             {/* Email Field */}
             <div className="group space-y-2">
               <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.2em] ml-1">
@@ -119,11 +113,14 @@ export default function LoginPage() {
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-orange-600 transition-colors z-10" size={18} />
                 <input
                   type="email"
+                  name="email"
+                  autoComplete="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-12 pr-5 py-4 rounded-2xl bg-zinc-900/50 border border-zinc-800 text-white outline-none focus:ring-4 focus:ring-orange-600/10 focus:border-orange-600 transition-all"
                   placeholder="*****@eventra.com"
+                  suppressHydrationWarning
                 />
               </div>
             </div>
@@ -137,18 +134,22 @@ export default function LoginPage() {
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-orange-600 transition-colors z-10" size={18} />
                 
                 <input
-                  type={showPassword ? "text" : "password"} // Dynamic type
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  autoComplete="current-password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-12 pr-12 py-4 rounded-2xl bg-zinc-900/50 border border-zinc-800 text-white outline-none focus:ring-4 focus:ring-orange-600/10 focus:border-orange-600 transition-all"
                   placeholder="••••••••"
+                  suppressHydrationWarning
                 />
 
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-orange-500 transition-colors z-20 p-1"
+                  suppressHydrationWarning
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -165,16 +166,15 @@ export default function LoginPage() {
               </motion.div>
             )}
 
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            <button
               type="submit"
-              className="w-full py-5 rounded-2xl bg-orange-600 hover:bg-orange-500 text-white font-black text-lg flex items-center justify-center gap-3 transition-all shadow-2xl shadow-orange-900/20"
+              className="w-full py-5 rounded-2xl bg-orange-600 hover:bg-orange-500 active:scale-[0.98] text-white font-black text-lg flex items-center justify-center gap-3 transition-all shadow-2xl shadow-orange-900/20"
+              suppressHydrationWarning
             >
               Sign into Dashboard <ArrowRight size={22} />
-            </motion.button>
+            </button>
           </form>
-        </motion.div>
+        </div>
       </div>
     </main>
   );

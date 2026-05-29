@@ -36,20 +36,31 @@ export default function TrainerManagementPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (!tenantId) return;
-    
-    // Correct Path: Nested within the tenant cluster
+    if (!tenantId) {
+      setTrainers([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     const trainersRef = collection(db, "tenants", tenantId, "trainers");
     const q = query(trainersRef, orderBy("createdAt", "desc"));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setTrainers(
-        snapshot.docs.map((d) =>
-          trainerFromFirestoreDoc(d.id, d.data() as Record<string, unknown>)
-        )
-      );
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        setTrainers(
+          snapshot.docs.map((d) =>
+            trainerFromFirestoreDoc(d.id, d.data() as Record<string, unknown>)
+          )
+        );
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Failed to load trainers:", err);
+        setLoading(false);
+      }
+    );
     return () => unsubscribe();
   }, [tenantId]);
 

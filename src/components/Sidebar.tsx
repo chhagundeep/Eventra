@@ -11,7 +11,7 @@ import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { usePathname, useRouter } from "next/navigation"; 
 import Link from "next/link";
-import Image from "next/image";
+import Logo from "@/components/Logo";
 
 const ROLE_MENUS = {
   "super-admin": [
@@ -62,20 +62,7 @@ export default function Sidebar({ onClose, role = "super-admin" }: { onClose?: (
   return (
     <div className="flex flex-col h-full bg-[#0a0a0a] border-r border-zinc-800/50">
       <div className="p-8 flex items-center justify-between">
-        <div className="flex items-center gap-3 px-2">
-          <div className="h-9 w-9 rounded-xl overflow-hidden shadow-lg shadow-orange-900/40">
-          <Image
-          src="/logo.png"
-          alt="Eventra Logo"
-          width={36}
-          height={36}
-          className="object-cover"
-          />
-          </div>
-          <span className="text-xl font-black tracking-tighter text-white uppercase italic leading-none">
-            Eventra
-          </span>
-        </div>
+        <Logo size={36} className="px-2" textClassName="text-xl font-black tracking-tighter text-white uppercase italic leading-none" />
         <button onClick={onClose} className="lg:hidden p-2 text-zinc-500 hover:text-white">
           <X size={20} />
         </button>

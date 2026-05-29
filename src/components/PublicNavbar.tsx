@@ -2,7 +2,8 @@
 "use client";
 
 import Link from "next/link";
-import { Search, MapPin, ChevronDown, Menu, Sun, Moon } from "lucide-react";
+import { Search, ChevronDown, Menu, Sun, Moon } from "lucide-react";
+import Logo from "@/components/Logo";
 
 // 1. Define the props interface
 interface PublicNavbarProps {
@@ -18,12 +19,11 @@ export default function PublicNavbar({ isDark, toggleTheme }: PublicNavbarProps)
     }`}>
       {/* --- TOP BAR --- */}
       <div className="max-w-7xl mx-auto h-16 px-4 md:px-8 flex items-center justify-between gap-8">
-        {/* Logo */}
-        <Link href="/" className="flex-shrink-0">
-          <h1 className={`text-2xl font-black tracking-tighter ${isDark ? "text-white" : "text-[#333]"}`}>
-            EVENTRA<span className="text-[#f84464]">.</span>
-          </h1>
-        </Link>
+        <Logo
+          href="/"
+          size={40}
+          textClassName={`text-2xl font-black tracking-tighter italic ${isDark ? "text-white" : "text-[#333]"}`}
+        />
 
         {/* Search Bar */}
         <div className="flex-1 max-w-2xl relative group">

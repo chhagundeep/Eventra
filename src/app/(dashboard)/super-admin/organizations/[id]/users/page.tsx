@@ -9,7 +9,13 @@ import {
   UserPlus, Download, CheckCircle2, Clock
 } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
+import {
+  isAppMemberRole,
+  normalizeUserRole,
+  shouldIncludeRootUser,
+  userDisplayName,
+} from "@/lib/organizationUsers";
 
 export default function OrganizationUsers() {
   const { id } = useParams();
@@ -19,19 +25,34 @@ export default function OrganizationUsers() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!id) return;
+    const orgId = typeof id === "string" ? id : id?.[0];
+    if (!orgId) return;
 
-    // Fetch users belonging to this specific orgId with role 'user'
-    const q = query(
-      collection(db, "users"), 
-      where("orgId", "==", id),
-      where("role", "==", "user")
+    const unsubscribe = onSnapshot(
+      collection(db, "users"),
+      (snapshot) => {
+        const members = snapshot.docs
+          .map((doc) => {
+            const data = doc.data() as Record<string, unknown>;
+            const role = normalizeUserRole(data);
+            if (!isAppMemberRole(role)) return null;
+            if (!shouldIncludeRootUser(data, orgId)) return null;
+            return {
+              id: doc.id,
+              ...data,
+              name: userDisplayName(data) || data.name,
+              role,
+            };
+          })
+          .filter(Boolean);
+        setUsers(members);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Failed to load mobile members:", err);
+        setLoading(false);
+      }
     );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      setLoading(false);
-    });
 
     return () => unsubscribe();
   }, [id]);

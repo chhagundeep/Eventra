@@ -11,6 +11,11 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, collection, query, where, limit } from "firebase/firestore";
+import {
+  isAppMemberRole,
+  normalizeUserRole,
+  shouldIncludeRootUser,
+} from "@/lib/organizationUsers";
 import Link from "next/link";
 import toast from "react-hot-toast";
 
@@ -52,11 +57,32 @@ export default function OrganizationDeepDive() {
       setStats(prev => ({ ...prev, trainers: snap.size }));
     });
 
-    // 3. Users Stats
+    // 3. App members — mobile root `users` + tenant sub-collection
+    let rootMemberCount = 0;
+    let tenantSubMemberCount = 0;
+
+    const updateUserStat = () => {
+      setStats((prev) => ({
+        ...prev,
+        users: Math.max(rootMemberCount, tenantSubMemberCount),
+      }));
+    };
+
+    const unsubRootMembers = onSnapshot(collection(db, "users"), (snap) => {
+      rootMemberCount = snap.docs.filter((d) => {
+        const data = d.data() as Record<string, unknown>;
+        return (
+          isAppMemberRole(normalizeUserRole(data)) && shouldIncludeRootUser(data, id)
+        );
+      }).length;
+      updateUserStat();
+    });
+
     const usersRef = collection(db, "tenants", id, "users");
     const usersQuery = query(usersRef, where("role", "==", "user"));
-    const unsubUsers = onSnapshot(usersQuery, (snap) => {
-      setStats(prev => ({ ...prev, users: snap.size }));
+    const unsubTenantUsers = onSnapshot(usersQuery, (snap) => {
+      tenantSubMemberCount = snap.size;
+      updateUserStat();
     });
 
     // 4. Events Stats & Live Records (Limited to 4 for the preview)
@@ -74,7 +100,8 @@ export default function OrganizationDeepDive() {
     return () => {
       unsubOrg();
       unsubTrainers();
-      unsubUsers();
+      unsubRootMembers();
+      unsubTenantUsers();
       unsubEvents();
     };
   }, [id]);
