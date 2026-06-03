@@ -12,6 +12,7 @@ import { collection, query, doc, deleteDoc, onSnapshot, orderBy } from "firebase
 import { useAuth } from "@/hooks/useAuth";
 import { EventraEvent, Trainer, trainerFromFirestoreDoc } from "@/types";
 import toast from "react-hot-toast";
+import { useDashboardTheme } from "@/contexts/DashboardThemeContext";
 
 // --- REFINED ID EXTRACTION ---
 const extractIdFromUrl = (url: string) => {
@@ -26,10 +27,11 @@ const extractIdFromUrl = (url: string) => {
 };
 
 // --- SUB-COMPONENT: SLIDESHOW EVENT CARD ---
-function EventCard({ event, onManage, onDelete }: { 
+function EventCard({ event, onManage, onDelete, isDark }: { 
   event: EventraEvent; 
   onManage: (id: string) => void; 
-  onDelete: (id: string, title: string) => void; 
+  onDelete: (id: string, title: string) => void;
+  isDark: boolean;
 }) {
   const [currentIdx, setCurrentIdx] = useState(0);
   const images = Array.isArray(event.images) ? event.images : [];
@@ -43,8 +45,11 @@ function EventCard({ event, onManage, onDelete }: {
   }, [images.length]);
 
   return (
-    <div className="group relative bg-zinc-950 border border-zinc-800 rounded-[2.5rem] overflow-hidden transition-all duration-500 hover:border-orange-500/40 hover:shadow-2xl flex flex-col h-full">
-      
+    <div
+      className={`group relative rounded-[2.5rem] overflow-hidden transition-all duration-500 hover:border-orange-500/40 hover:shadow-2xl flex flex-col h-full border ${
+        isDark ? "bg-zinc-950 border-zinc-800" : "bg-white border-zinc-200"
+      }`}
+    >
       {/* IMAGE PANEL SECTION */}
       <div className="h-52 relative overflow-hidden bg-zinc-900">
         {images.length > 0 ? (
@@ -79,49 +84,51 @@ function EventCard({ event, onManage, onDelete }: {
           </div>
         )}
         
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent opacity-60" />
-        
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+
         <div className="absolute top-5 left-6 z-20">
           <span className="px-3 py-1 bg-orange-600 text-[9px] font-black uppercase tracking-widest text-white rounded-lg shadow-lg">
             {event.category || "General"}
           </span>
         </div>
+
+        <div className="absolute bottom-5 left-6 right-6 z-20">
+          <h3 className="dashboard-on-image-text text-2xl font-black uppercase tracking-tighter leading-none line-clamp-2 drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)]">
+            {event.title}
+          </h3>
+        </div>
       </div>
 
       {/* METADATA SECTION */}
-      <div className="px-7 pb-8 relative z-10 space-y-4 bg-zinc-950 flex-grow">
-        <h3 className="text-2xl font-black text-white uppercase tracking-tighter leading-none pt-6 line-clamp-1">
-          {event.title}
-        </h3>
-        
+      <div className={`px-7 pb-8 relative z-10 space-y-4 flex-grow pt-6 ${isDark ? "bg-zinc-950" : "bg-white"}`}>
         {/* UPDATED 2x2 GRID FOR LOCATION INCLUSION */}
-        <div className="grid grid-cols-2 gap-4 py-4 border-y border-zinc-900">
+        <div className={`grid grid-cols-2 gap-4 py-4 border-y ${isDark ? "border-zinc-900" : "border-zinc-200"}`}>
           <div className="flex items-center gap-2">
             <Calendar size={14} className="text-orange-600" />
             <div className="space-y-0.5">
               <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Date</p>
-              <p className="text-[10px] font-bold text-zinc-300">{event.date}</p>
+              <p className={`text-[10px] font-bold ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>{event.date}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <MapPin size={14} className="text-orange-600" />
             <div className="space-y-0.5">
               <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Location</p>
-              <p className="text-[10px] font-bold text-zinc-300 truncate max-w-[100px]">{event.locationName || "Remote"}</p>
+              <p className={`text-[10px] font-bold truncate max-w-[100px] ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>{event.locationName || "Remote"}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Users size={14} className="text-orange-600" />
             <div className="space-y-0.5">
               <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Payload</p>
-              <p className="text-[10px] font-bold text-zinc-300">{event.capacity} Max</p>
+              <p className={`text-[10px] font-bold ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>{event.capacity} Max</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Ticket size={14} className="text-orange-600" />
             <div className="space-y-0.5">
               <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Credit</p>
-              <p className="text-[10px] font-black text-white">Rs.{event.price || 0}</p>
+              <p className={`text-[10px] font-black ${isDark ? "text-white" : "text-zinc-900"}`}>Rs.{event.price || 0}</p>
             </div>
           </div>
         </div>
@@ -133,13 +140,21 @@ function EventCard({ event, onManage, onDelete }: {
         <div className="flex items-center gap-3 pt-2">
           <button 
             onClick={() => onManage(event.id!)} 
-            className="flex-grow bg-white hover:bg-orange-600 text-black hover:text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all flex items-center justify-center gap-2 group/btn"
+            className={`flex-grow py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all flex items-center justify-center gap-2 group/btn ${
+              isDark
+                ? "bg-white hover:bg-orange-600 text-black hover:text-white"
+                : "bg-zinc-900 hover:bg-orange-600 text-white hover:text-white"
+            }`}
           >
             Manage Node <ChevronRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
           </button>
           <button 
             onClick={() => onDelete(event.id!, event.title)} 
-            className="p-4 bg-zinc-900 text-zinc-600 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-colors border border-zinc-800"
+            className={`p-4 rounded-2xl transition-colors border hover:text-red-500 hover:bg-red-500/10 ${
+              isDark
+                ? "bg-zinc-900 text-zinc-600 border-zinc-800"
+                : "bg-zinc-100 text-zinc-500 border-zinc-200"
+            }`}
           >
             <Trash2 size={16} />
           </button>
@@ -152,6 +167,7 @@ function EventCard({ event, onManage, onDelete }: {
 export default function EventsManagerPage() {
   const router = useRouter();
   const { tenantId } = useAuth();
+  const { isDark } = useDashboardTheme();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -238,13 +254,23 @@ export default function EventsManagerPage() {
       
       {/* HEADER STATISTICS */}
       <div className="flex flex-col lg:flex-row justify-between items-end lg:items-center gap-6">
-        <div className="bg-zinc-900/50 border border-zinc-800 p-5 rounded-[2rem] flex items-center gap-5 min-w-[240px]">
-          <div className="w-14 h-14 bg-orange-600/10 rounded-2xl flex items-center justify-center text-orange-500 border border-orange-600/20">
+        <div
+          className={`p-5 rounded-[2rem] flex items-center gap-5 min-w-[240px] border ${
+            isDark ? "bg-zinc-900/50 border-zinc-800" : "bg-zinc-100 border-zinc-200"
+          }`}
+        >
+          <div
+            className={`w-14 h-14 rounded-2xl flex items-center justify-center border ${
+              isDark
+                ? "bg-orange-600/10 text-orange-500 border-orange-600/20"
+                : "bg-orange-100 text-orange-600 border-orange-300"
+            }`}
+          >
             <Calendar size={28} />
           </div>
           <div>
             <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em]">Active Nodes</p>
-            <p className="text-3xl font-black text-white">{events.length}</p>
+            <p className={`text-3xl font-black ${isDark ? "text-white" : "text-zinc-900"}`}>{events.length}</p>
           </div>
         </div>
 
@@ -258,13 +284,16 @@ export default function EventsManagerPage() {
 
       {/* INFRASTRUCTURE GRID */}
       <div className="space-y-8">
-        <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Event Infrastructure</h2>
+        <h2 className={`text-3xl font-black uppercase tracking-tighter ${isDark ? "text-white" : "text-zinc-900"}`}>
+          Event Infrastructure
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {events.length > 0 ? (
             events.map((event) => (
               <EventCard 
                 key={event.id} 
-                event={event} 
+                event={event}
+                isDark={isDark}
                 onManage={(id) => router.push(`/admin/events/${id}`)} 
                 onDelete={handleDeleteRequest} 
               />

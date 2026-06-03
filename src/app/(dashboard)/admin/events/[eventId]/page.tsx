@@ -19,6 +19,7 @@ import CreateSlotModal from "@/components/modals/CreateSlotModal";
 // Sub-components
 import SlotList from "@/components/slots/SlotList";
 import { EventraEvent, Trainer, trainerFromFirestoreDoc, trainerDisplayName } from "@/types";
+import { useDashboardTheme } from "@/contexts/DashboardThemeContext";
 
 interface PageProps {
   params: Promise<{ eventId: string }>;
@@ -39,7 +40,8 @@ const extractIdFromUrl = (url: string) => {
 export default function AdminEventDetailPage({ params }: PageProps) {
   const { eventId } = use(params);
   const router = useRouter();
-  const { tenantId } = useAuth(); 
+  const { tenantId } = useAuth();
+  const { isDark } = useDashboardTheme();
   
   const [event, setEvent] = useState<EventraEvent | null>(null);
   const [trainers, setTrainers] = useState<Trainer[]>([]); 
@@ -141,7 +143,7 @@ export default function AdminEventDetailPage({ params }: PageProps) {
   };
 
   if (loading) return (
-    <div className="h-screen flex items-center justify-center bg-black">
+    <div className={`h-screen flex items-center justify-center ${isDark ? "bg-black" : "bg-zinc-50"}`}>
       <Zap className="animate-pulse text-orange-600" size={40} />
     </div>
   );
@@ -159,7 +161,7 @@ export default function AdminEventDetailPage({ params }: PageProps) {
     .filter(Boolean);
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 lg:p-8 font-sans animate-in fade-in duration-700">
+    <div className={`min-h-screen p-4 lg:p-8 font-sans animate-in fade-in duration-700 ${isDark ? "bg-black text-white" : "bg-zinc-50 text-zinc-900"}`}>
       {/* ACTION BAR */}
       <div className="max-w-[1600px] mx-auto mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
@@ -169,7 +171,7 @@ export default function AdminEventDetailPage({ params }: PageProps) {
           >
             <ArrowLeft size={14} /> Back to Cluster
           </button>
-          <h1 className="text-4xl font-black uppercase tracking-tighter italic">
+          <h1 className={`text-4xl font-black uppercase tracking-tighter italic ${isDark ? "text-white" : "text-zinc-900"}`}>
             Event <span className="text-orange-600">Nodes</span>
           </h1>
         </div>
@@ -183,13 +185,21 @@ export default function AdminEventDetailPage({ params }: PageProps) {
           </button>
           <button 
             onClick={() => setIsEditModalOpen(true)}
-            className="px-6 py-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
+            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border ${
+              isDark
+                ? "bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-white"
+                : "bg-zinc-200 hover:bg-zinc-300 border-zinc-300 text-zinc-900"
+            }`}
           >
             <Edit3 size={14} /> Modify
           </button>
           <button 
             onClick={() => setIsDeleteModalOpen(true)}
-            className="px-6 py-3 bg-red-950/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-900/50 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
+            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border hover:text-white ${
+              isDark
+                ? "bg-red-950/20 hover:bg-red-600 text-red-500 border-red-900/50"
+                : "bg-red-100 hover:bg-red-600 text-red-700 border-red-300"
+            }`}
           >
             <Trash2 size={14} /> Purge
           </button>
@@ -199,7 +209,7 @@ export default function AdminEventDetailPage({ params }: PageProps) {
       <div className="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* MAIN CONTENT AREA */}
         <div className="lg:col-span-8 space-y-8">
-          <div className="bg-zinc-950 border border-zinc-900 rounded-[3rem] overflow-hidden">
+          <div className={`rounded-[3rem] overflow-hidden border ${isDark ? "bg-zinc-950 border-zinc-900" : "bg-white border-zinc-200"}`}>
             <div className="h-[500px] relative overflow-hidden bg-zinc-900">
               {images.length > 0 ? (
                 images.map((img, idx) => (
@@ -207,47 +217,53 @@ export default function AdminEventDetailPage({ params }: PageProps) {
                     key={idx}
                     src={img}
                     className={`absolute inset-0 w-full h-full object-cover transition-all duration-1000 ${
-                      idx === currentImgIdx ? "opacity-40 scale-100" : "opacity-0 scale-110"
+                      idx === currentImgIdx ? "opacity-100 scale-100" : "opacity-0 scale-110"
                     }`}
                     alt=""
                   />
                 ))
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-zinc-800 font-black tracking-widest">NULL MEDIA</div>
+                <div className="w-full h-full flex items-center justify-center text-zinc-400 dark:text-zinc-800 font-black tracking-widest">NULL MEDIA</div>
               )}
               
               <div className="absolute bottom-10 right-10 flex gap-2 z-20">
                 {images.map((_, i) => (
-                  <div key={i} className={`h-1.5 transition-all duration-500 rounded-full ${i === currentImgIdx ? "w-8 bg-orange-600" : "w-2 bg-zinc-700"}`} />
+                  <div key={i} className={`h-1.5 transition-all duration-500 rounded-full ${i === currentImgIdx ? "w-8 bg-orange-600" : "w-2 bg-zinc-400 dark:bg-zinc-700"}`} />
                 ))}
               </div>
 
-              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent pointer-events-none" />
               <div className="absolute bottom-12 left-12 z-10 space-y-4">
-                <span className="px-4 py-1.5 bg-orange-600 text-[10px] font-black uppercase tracking-widest rounded-xl inline-flex items-center gap-2">
+                <span className="px-4 py-1.5 bg-orange-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl inline-flex items-center gap-2">
                   <Tag size={12} /> {categoryLabel}
                 </span>
-                <h2 className="text-7xl font-black uppercase tracking-tighter leading-none">{event?.title}</h2>
+                <h2
+                  id="event-detail-photo-title"
+                  style={{ color: "#ffffff" }}
+                  className="text-7xl font-black uppercase tracking-tighter leading-none drop-shadow-lg"
+                >
+                  {event?.title}
+                </h2>
               </div>
             </div>
             
             {/* CORE DETAILS GRID */}
-            <div className="p-12 grid grid-cols-2 md:grid-cols-4 gap-10 border-t border-zinc-900">
-                <DetailItem icon={<Calendar size={18}/>} label="Schedule" value={event?.date} />
-                <DetailItem icon={<MapPin size={18}/>} label="Node Location" value={event?.locationName || "Location TBD"} />
-                <DetailItem icon={<Users size={18}/>} label="Max Payload" value={`${event?.capacity} Pax`} />
-                <DetailItem icon={<Ticket size={18} className="text-orange-500"/>} label="Access Fee" value={`Rs. ${event?.price || 0}`} />
+            <div className={`p-12 grid grid-cols-2 md:grid-cols-4 gap-10 border-t ${isDark ? "border-zinc-900" : "border-zinc-200"}`}>
+                <DetailItem isDark={isDark} icon={<Calendar size={18}/>} label="Schedule" value={event?.date} />
+                <DetailItem isDark={isDark} icon={<MapPin size={18}/>} label="Node Location" value={event?.locationName || "Location TBD"} />
+                <DetailItem isDark={isDark} icon={<Users size={18}/>} label="Max Payload" value={`${event?.capacity} Pax`} />
+                <DetailItem isDark={isDark} icon={<Ticket size={18} className="text-orange-500"/>} label="Access Fee" value={`Rs. ${event?.price || 0}`} />
             </div>
 
             {/* GPS TELEMETRY BAR */}
             <div className="px-12 pb-8 flex flex-wrap items-center gap-6">
-               <div className="flex items-center gap-3 bg-zinc-900/50 px-5 py-3 rounded-2xl border border-zinc-800">
+               <div className={`flex items-center gap-3 px-5 py-3 rounded-2xl border ${isDark ? "bg-zinc-900/50 border-zinc-800" : "bg-zinc-100 border-zinc-200"}`}>
                  <span className="text-[9px] font-black text-orange-600 uppercase tracking-widest">LAT</span>
-                 <span className="text-xs font-mono text-zinc-400">{event?.latitude || "0.0000"}</span>
+                 <span className={`text-xs font-mono ${isDark ? "text-zinc-400" : "text-zinc-600"}`}>{event?.latitude || "0.0000"}</span>
                </div>
-               <div className="flex items-center gap-3 bg-zinc-900/50 px-5 py-3 rounded-2xl border border-zinc-800">
+               <div className={`flex items-center gap-3 px-5 py-3 rounded-2xl border ${isDark ? "bg-zinc-900/50 border-zinc-800" : "bg-zinc-100 border-zinc-200"}`}>
                  <span className="text-[9px] font-black text-orange-600 uppercase tracking-widest">LONG</span>
-                 <span className="text-xs font-mono text-zinc-400">{event?.longitude || "0.0000"}</span>
+                 <span className={`text-xs font-mono ${isDark ? "text-zinc-400" : "text-zinc-600"}`}>{event?.longitude || "0.0000"}</span>
                </div>
                {event?.latitude && event?.longitude && (
                  <a 
@@ -269,7 +285,7 @@ export default function AdminEventDetailPage({ params }: PageProps) {
           </div>
 
           {/* SLOTS SECTION */}
-          <div className="bg-zinc-950 p-10 rounded-[3rem] border border-zinc-900">
+          <div className={`p-10 rounded-[3rem] border ${isDark ? "bg-zinc-950 border-zinc-900" : "bg-white border-zinc-200"}`}>
              <h3 className="text-xs font-black uppercase tracking-[0.4em] text-orange-600 mb-10 flex items-center gap-3">
                 <Clock size={18} /> Available Time Windows
              </h3>
@@ -283,12 +299,12 @@ export default function AdminEventDetailPage({ params }: PageProps) {
 
         {/* SIDEBAR ANALYTICS */}
         <div className="lg:col-span-4 space-y-6">
-          <AnalyticsCard title="Active Load" value="82%" sub="Booking Ratio" color="text-orange-500" />
+          <AnalyticsCard isDark={isDark} title="Active Load" value="82%" sub="Booking Ratio" color="text-orange-500" />
 
-          <div className="bg-zinc-950 p-8 rounded-[2.5rem] border border-zinc-900">
+          <div className={`p-8 rounded-[2.5rem] border ${isDark ? "bg-zinc-950 border-zinc-900" : "bg-white border-zinc-200"}`}>
             <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-6">Revenue Forecast</h3>
             <div className="flex justify-between items-end">
-                <span className="text-4xl font-black italic tracking-tighter text-white">
+                <span className={`text-4xl font-black italic tracking-tighter ${isDark ? "text-white" : "text-zinc-900"}`}>
                   Rs.{(event?.price || 0) * (event?.capacity || 0) * 10}
                 </span>
                 <TrendingUp className="text-orange-600 mb-1" size={24} />
@@ -347,20 +363,20 @@ export default function AdminEventDetailPage({ params }: PageProps) {
   );
 }
 
-function DetailItem({ icon, label, value }: { icon: React.ReactNode, label: string, value: any }) {
+function DetailItem({ icon, label, value, isDark }: { icon: React.ReactNode, label: string, value: any, isDark: boolean }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-zinc-600 uppercase text-[9px] font-black tracking-widest">
+      <div className={`flex items-center gap-2 uppercase text-[9px] font-black tracking-widest ${isDark ? "text-zinc-600" : "text-zinc-500"}`}>
         {icon} {label}
       </div>
-      <p className="text-base font-bold text-zinc-200">{value || "---"}</p>
+      <p className={`text-base font-bold ${isDark ? "text-zinc-200" : "text-zinc-800"}`}>{value || "---"}</p>
     </div>
   );
 }
 
-function AnalyticsCard({ title, value, sub, color }: any) {
+function AnalyticsCard({ title, value, sub, color, isDark }: { title: string, value: string, sub: string, color: string, isDark: boolean }) {
   return (
-    <div className="bg-zinc-950 p-8 rounded-[2.5rem] border border-zinc-900">
+    <div className={`p-8 rounded-[2.5rem] border ${isDark ? "bg-zinc-950 border-zinc-900" : "bg-white border-zinc-200"}`}>
       <p className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-3">{title}</p>
       <h3 className={`text-6xl font-black italic tracking-tighter ${color}`}>{value}</h3>
       <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-3">{sub}</p>

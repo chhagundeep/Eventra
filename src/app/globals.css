@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Dashboard theme: .dark lives on [data-dashboard-theme], not html */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Add this to your globals.css */
 * {
   touch-action: manipulation;
@@ -25,4 +28,156 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+}
+
+/* Admin & super-admin dashboard light theme (scoped via DashboardThemeProvider) */
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) {
+  color-scheme: light;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-black {
+  background-color: #fafafa !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-\[\#050505\] {
+  background-color: #f4f4f5 !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-\[\#0a0a0a\] {
+  background-color: #ffffff !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-zinc-950 {
+  background-color: #ffffff !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-zinc-900 {
+  background-color: #f4f4f5 !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-zinc-900\/20 {
+  background-color: rgb(244 244 245 / 0.85) !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-zinc-900\/30 {
+  background-color: rgb(244 244 245 / 0.9) !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-zinc-900\/40 {
+  background-color: rgb(244 244 245 / 0.95) !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-zinc-900\/50 {
+  background-color: rgb(244 244 245 / 0.98) !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-zinc-900\/80 {
+  background-color: #e4e4e7 !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-zinc-800 {
+  background-color: #e4e4e7 !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-zinc-800\/40 {
+  background-color: rgb(228 228 231 / 0.65) !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-black\/40,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-black\/50,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-black\/60,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-black\/80,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-black\/90 {
+  background-color: rgb(24 24 27 / 0.45) !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .border-zinc-800,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .border-zinc-800\/50,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .border-zinc-900,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .divide-zinc-800,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .divide-zinc-800\/50 {
+  border-color: #e4e4e7 !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .text-white:not(.text-black):not([class*="text-orange"]):not([class*="text-red"]):not([class*="text-blue"]):not([class*="text-emerald"]):not([class*="text-green"]) {
+  color: #18181b !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .text-zinc-100 {
+  color: #27272a !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .text-zinc-300 {
+  color: #52525b !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .text-zinc-400 {
+  color: #71717a !important;
+}
+
+/* Solid accent buttons only — do not force white text on /10 tinted badges */
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) a.bg-orange-600,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) button.bg-orange-600,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-orange-600.text-white,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-orange-500.text-white,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-red-600.text-white,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-red-500.text-white {
+  color: #ffffff !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) a.bg-orange-600 *,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) button.bg-orange-600 *,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .bg-orange-600.text-white * {
+  color: inherit !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .hover\:bg-zinc-900:hover,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .hover\:bg-zinc-800:hover {
+  background-color: #e4e4e7 !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .hover\:bg-zinc-800\/40:hover {
+  background-color: rgb(228 228 231 / 0.65) !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .hover\:text-white:hover,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .hover\:text-zinc-100:hover {
+  color: #18181b !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .hover\:bg-orange-600:hover,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .hover\:bg-orange-500:hover,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .hover\:bg-orange-600:hover *,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) button.hover\:bg-orange-600:hover {
+  color: #ffffff !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .group:hover .group-hover\:text-white {
+  color: #18181b !important;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+}
+
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) input,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) textarea,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) select {
+  color-scheme: light;
+}
+
+/* Event titles on photos — always white in both themes */
+.dashboard-on-image-text {
+  color: #ffffff !important;
+}
+
+/* Manage Node event detail — photo title only (beats light-theme text overrides) */
+#event-detail-photo-title,
+:is([data-dashboard-theme]:not(.dark), body.dashboard-light) #event-detail-photo-title {
+  color: #ffffff !important;
+}
+
+/* Deploy Event modal shell — light mode background only */
+body.dashboard-light .bg-\[\#09090b\] {
+  background-color: #ffffff !important;
 }

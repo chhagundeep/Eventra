@@ -12,6 +12,7 @@ import { signOut } from "firebase/auth";
 import { usePathname, useRouter } from "next/navigation"; 
 import Link from "next/link";
 import Logo from "@/components/Logo";
+import { DashboardThemeToggle, useDashboardThemeOptional } from "@/contexts/DashboardThemeContext";
 
 const ROLE_MENUS = {
   "super-admin": [
@@ -44,7 +45,8 @@ const ROLE_MENUS = {
 
 export default function Sidebar({ onClose, role = "super-admin" }: { onClose?: () => void, role?: keyof typeof ROLE_MENUS }) {
   const pathname = usePathname();
-  const router = useRouter(); 
+  const router = useRouter();
+  const { isDark } = useDashboardThemeOptional();
 
   // Guard: Ensure menuItems is never undefined if role is null/invalid
   const activeRole = role || "super-admin";
@@ -61,10 +63,10 @@ export default function Sidebar({ onClose, role = "super-admin" }: { onClose?: (
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0a0a] border-r border-zinc-800/50">
+    <div className={`flex flex-col h-full border-r ${isDark ? "bg-[#0a0a0a] border-zinc-800/50" : "bg-white border-zinc-200"}`}>
       <div className="p-8 flex items-center justify-between">
-        <Logo size={36} className="px-2" textClassName="text-xl font-black tracking-tighter text-white uppercase italic leading-none" />
-        <button onClick={onClose} className="lg:hidden p-2 text-zinc-500 hover:text-white">
+        <Logo size={36} className="px-2" textClassName={`text-xl font-black tracking-tighter uppercase italic leading-none ${isDark ? "text-white" : "text-zinc-900"}`} />
+        <button onClick={onClose} className={`lg:hidden p-2 text-zinc-500 ${isDark ? "hover:text-white" : "hover:text-zinc-900"}`}>
           <X size={20} />
         </button>
       </div>
@@ -87,7 +89,9 @@ export default function Sidebar({ onClose, role = "super-admin" }: { onClose?: (
               className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold text-sm transition-all ${
                 isActive 
                   ? "bg-orange-600 text-white shadow-xl shadow-orange-900/20" 
-                  : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-100"
+                  : isDark
+                    ? "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-100"
+                    : "text-zinc-600 hover:bg-zinc-200 hover:text-zinc-900"
               }`}
             >
               <item.icon size={18} strokeWidth={isActive ? 3 : 2} />
@@ -98,7 +102,7 @@ export default function Sidebar({ onClose, role = "super-admin" }: { onClose?: (
 
         {(role === "super-admin" || role === "admin") && (
           <>
-            <div className="pt-8 pb-2 px-4 text-[10px] font-black text-zinc-700 uppercase tracking-[0.3em]">
+            <div className={`pt-8 pb-2 px-4 text-[10px] font-black uppercase tracking-[0.3em] ${isDark ? "text-zinc-700" : "text-zinc-400"}`}>
               System
             </div>
             <Link
@@ -107,7 +111,9 @@ export default function Sidebar({ onClose, role = "super-admin" }: { onClose?: (
               className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold text-sm transition-all ${
                 pathname.includes("config") 
                   ? "bg-orange-600 text-white" 
-                  : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-100"
+                  : isDark
+                    ? "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-100"
+                    : "text-zinc-600 hover:bg-zinc-200 hover:text-zinc-900"
               }`}
             >
               <Settings size={18} />
@@ -117,7 +123,8 @@ export default function Sidebar({ onClose, role = "super-admin" }: { onClose?: (
         )}
       </nav>
 
-      <div className="p-6 border-t border-zinc-800/50">
+      <div className={`p-6 border-t space-y-1.5 ${isDark ? "border-zinc-800/50" : "border-zinc-200"}`}>
+        {(role === "super-admin" || role === "admin") && <DashboardThemeToggle />}
         <button 
           onClick={handleLogout}
           className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold text-sm text-zinc-600 hover:bg-red-500/10 hover:text-red-500 transition-all"

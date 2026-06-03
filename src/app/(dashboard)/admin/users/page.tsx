@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { Trash2, Shield, Mail, User, Search, Loader2, GraduationCap } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useDashboardTheme } from "@/contexts/DashboardThemeContext";
 import {
   isAppMemberRole,
   normalizeUserRole,
@@ -74,19 +75,20 @@ function mergeUser(map: Map<string, OrganizationUser>, entry: OrganizationUser) 
 function roleBadgeClass(role: string) {
   switch (role) {
     case "admin":
-      return "bg-orange-600/10 border-orange-600/20 text-orange-500";
+      return "bg-orange-100 border-orange-300 text-orange-700 dark:bg-orange-600/10 dark:border-orange-600/20 dark:text-orange-500";
     case "trainer":
-      return "bg-blue-500/10 border-blue-500/20 text-blue-400";
+      return "bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-500/10 dark:border-blue-500/20 dark:text-blue-400";
     default:
       if (isAppMemberRole(role)) {
-        return "bg-emerald-500/10 border-emerald-500/20 text-emerald-400";
+        return "bg-emerald-100 border-emerald-300 text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400";
       }
-      return "bg-zinc-500/10 border-zinc-500/20 text-zinc-400";
+      return "bg-zinc-100 border-zinc-300 text-zinc-600 dark:bg-zinc-500/10 dark:border-zinc-500/20 dark:text-zinc-400";
   }
 }
 
 export default function OrganizationUsersPage() {
   const { tenantId, loading: authLoading } = useAuth();
+  const { isDark } = useDashboardTheme();
   const [users, setUsers] = useState<OrganizationUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -200,10 +202,14 @@ export default function OrganizationUsersPage() {
   }
 
   return (
-    <div className="p-4 lg:p-8 space-y-6 pt-20 lg:pt-8 min-h-screen bg-black">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-zinc-900/40 p-5 lg:p-8 rounded-[1.5rem] lg:rounded-[2.5rem] border border-zinc-800/50 shadow-2xl">
+    <div className={`p-4 lg:p-8 space-y-6 pt-20 lg:pt-8 min-h-screen ${isDark ? "bg-black" : "bg-zinc-50"}`}>
+      <div
+        className={`flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-5 lg:p-8 rounded-[1.5rem] lg:rounded-[2.5rem] border shadow-2xl ${
+          isDark ? "bg-zinc-900/40 border-zinc-800/50" : "bg-white border-zinc-200"
+        }`}
+      >
         <div>
-          <h1 className="text-xl lg:text-2xl font-black text-white tracking-tight italic uppercase">
+          <h1 className={`text-xl lg:text-2xl font-black tracking-tight italic uppercase ${isDark ? "text-white" : "text-zinc-900"}`}>
             Organization Users
           </h1>
           <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">
@@ -218,7 +224,11 @@ export default function OrganizationUsersPage() {
             placeholder="Search by name or email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-zinc-950 border border-zinc-800 rounded-2xl py-3 pl-12 pr-4 text-sm text-white focus:outline-none focus:border-orange-600 transition-all w-full"
+            className={`border rounded-2xl py-3 pl-12 pr-4 text-sm focus:outline-none focus:border-orange-600 transition-all w-full ${
+              isDark
+                ? "bg-zinc-950 border-zinc-800 text-white"
+                : "bg-white border-zinc-300 text-zinc-900"
+            }`}
           />
         </div>
       </div>
@@ -239,7 +249,9 @@ export default function OrganizationUsersPage() {
             className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
               roleFilter === key
                 ? "bg-orange-600 text-white"
-                : "bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-white"
+                : isDark
+                  ? "bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-white"
+                  : "bg-zinc-100 border border-zinc-200 text-zinc-600 hover:text-zinc-900"
             }`}
           >
             {label} ({counts[key]})
@@ -253,7 +265,11 @@ export default function OrganizationUsersPage() {
         </div>
       )}
 
-      <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[1.5rem] lg:rounded-[2.5rem] overflow-hidden">
+      <div
+        className={`rounded-[1.5rem] lg:rounded-[2.5rem] overflow-hidden border ${
+          isDark ? "bg-zinc-900/20 border-zinc-800/50" : "bg-white border-zinc-200"
+        }`}
+      >
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[700px]">
             <thead>
@@ -282,11 +298,21 @@ export default function OrganizationUsersPage() {
                 filteredUsers.map((user) => (
                   <tr
                     key={user.uid || user.id}
-                    className="group border-b border-zinc-900 hover:bg-white/[0.02] transition-colors"
+                    className={`group border-b transition-colors ${
+                      isDark
+                        ? "border-zinc-900 hover:bg-white/[0.02]"
+                        : "border-zinc-200 hover:bg-zinc-50"
+                    }`}
                   >
                     <td className="p-6">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-700 text-zinc-400 group-hover:border-orange-600 transition-colors">
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center border group-hover:border-orange-600 transition-colors ${
+                            isDark
+                              ? "bg-zinc-800 border-zinc-700 text-zinc-400"
+                              : "bg-zinc-200 border-zinc-300 text-zinc-600"
+                          }`}
+                        >
                           {user.role === "trainer" ? (
                             <GraduationCap size={18} />
                           ) : (
@@ -294,7 +320,7 @@ export default function OrganizationUsersPage() {
                           )}
                         </div>
                         <div>
-                          <div className="text-sm font-bold text-white">
+                          <div className={`text-sm font-bold ${isDark ? "text-white" : "text-zinc-900"}`}>
                             {user.name || user.email?.split("@")[0] || "Unknown"}
                           </div>
                           <div className="text-xs text-zinc-500 flex items-center gap-1">
