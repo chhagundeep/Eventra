@@ -233,9 +233,16 @@ export default function DashboardProfileMenu({
               </div>
               <CldUploadWidget
                 uploadPreset={process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET}
-                onSuccess={(result: { info?: { secure_url?: string } }) => {
-                  const url = result.info?.secure_url;
-                  if (url) setEditPhotoUrl(url);
+                onSuccess={(result) => {
+                const info = result.info;
+
+                if (
+                info &&
+                typeof info !== "string" &&
+                "secure_url" in info
+                ) {
+                setEditPhotoUrl(info.secure_url);
+                toast.success("Photo uploaded. Click 'Save profile' to apply.");}
                 }}
               >
                 {({ open: openUpload }) => (

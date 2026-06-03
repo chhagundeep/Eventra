@@ -293,6 +293,7 @@ export default function AdminEventDetailPage({ params }: PageProps) {
                eventId={eventId} 
                tenantId={tenantId || ""} 
                price={event?.price || 0} 
+               onEdit={() => {}}
              />
           </div>
         </div>

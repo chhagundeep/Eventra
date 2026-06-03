@@ -50,7 +50,7 @@ export function trainerFromFirestoreDoc(
   data: Record<string, unknown>
 ): Trainer {
   const d = data as Partial<Trainer> & { name?: string; specialties?: string[] };
-  const rawPrice = d.price;
+  const rawPrice = d.price as number | string | undefined;
   const price =
     typeof rawPrice === "number" && !Number.isNaN(rawPrice)
       ? rawPrice
