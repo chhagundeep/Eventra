@@ -6,14 +6,14 @@ import { LogOut, Sun, Moon, UserCircle, ChevronLeft, Upload, Loader2 } from "luc
 import { signOut, updateProfile } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { CldUploadWidget } from "next-cloudinary";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboardTheme } from "@/contexts/DashboardThemeContext";
 import toast from "react-hot-toast";
 
 function initialsFromUser(displayName: string | null | undefined, email: string | null | undefined) {
-  const source = displayName?.trim() || email?.split("@")[0] || "SA";
+  const source = displayName?.trim() || email?.split("@")[0] || "U";
   const parts = source.split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return source.slice(0, 2).toUpperCase();
@@ -21,7 +21,13 @@ function initialsFromUser(displayName: string | null | undefined, email: string 
 
 type PanelView = "menu" | "profile";
 
-export default function SuperAdminProfileMenu({ isDark }: { isDark: boolean }) {
+export default function DashboardProfileMenu({
+  isDark,
+  fallbackLabel = "User",
+}: {
+  isDark: boolean;
+  fallbackLabel?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<PanelView>("menu");
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
@@ -33,7 +39,7 @@ export default function SuperAdminProfileMenu({ isDark }: { isDark: boolean }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, tenantId } = useAuth();
   const { isDark: themeIsDark, toggleTheme } = useDashboardTheme();
 
   useEffect(() => setMounted(true), []);
@@ -95,11 +101,19 @@ export default function SuperAdminProfileMenu({ isDark }: { isDark: boolean }) {
         displayName: trimmed,
         photoURL: photo,
       });
-      await updateDoc(doc(db, "users", firebaseUser.uid), {
+      const profileFields = {
         name: trimmed,
         displayName: trimmed,
         photoURL: photo || "",
-      });
+      };
+      await updateDoc(doc(db, "users", firebaseUser.uid), profileFields);
+      if (tenantId) {
+        await setDoc(
+          doc(db, "tenants", tenantId, "users", firebaseUser.uid),
+          profileFields,
+          { merge: true }
+        );
+      }
       toast.success("Profile updated.");
       setOpen(false);
       setView("menu");
@@ -111,7 +125,8 @@ export default function SuperAdminProfileMenu({ isDark }: { isDark: boolean }) {
     }
   };
 
-  const displayName = user?.displayName?.trim() || user?.email?.split("@")[0] || "Super Admin";
+  const displayName =
+    user?.displayName?.trim() || user?.email?.split("@")[0] || fallbackLabel;
   const initials = initialsFromUser(user?.displayName, user?.email);
   const previewPhoto = editPhotoUrl;
   const previewInitials = initialsFromUser(

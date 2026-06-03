@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Sidebar from "@/components/Sidebar";
-import SuperAdminProfileMenu from "@/components/SuperAdminProfileMenu";
+import DashboardProfileMenu from "@/components/DashboardProfileMenu";
 import { Menu, Search, Bell, Sun, Moon } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 import { DashboardThemeProvider, useDashboardTheme } from "@/contexts/DashboardThemeContext";
@@ -83,7 +83,7 @@ function SuperAdminLayoutShell({ children }: { children: React.ReactNode }) {
                 <Bell size={18} />
                 <span className="absolute top-3 right-3 h-1.5 w-1.5 bg-orange-600 rounded-full group-hover:animate-ping" />
               </button>
-              <SuperAdminProfileMenu isDark={isDark} />
+              <DashboardProfileMenu isDark={isDark} fallbackLabel="Super Admin" />
             </div>
           </div>
         </header>
