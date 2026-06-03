@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Sidebar from "@/components/Sidebar";
+import SuperAdminProfileMenu from "@/components/SuperAdminProfileMenu";
 import { Menu, Search, Bell, Sun, Moon } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 import { DashboardThemeProvider, useDashboardTheme } from "@/contexts/DashboardThemeContext";
@@ -45,7 +46,7 @@ function SuperAdminLayoutShell({ children }: { children: React.ReactNode }) {
 
       {/* 2. MAIN CONTENT AREA - Now takes up all remaining width */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className={`h-24 border-b backdrop-blur-xl flex items-center justify-between px-6 lg:px-12 ${isDark ? "border-zinc-800/50 bg-[#0a0a0a]/50" : "border-zinc-200 bg-white/80"}`}>
+        <header className={`relative z-[100] h-24 border-b backdrop-blur-xl flex items-center justify-between px-6 lg:px-12 ${isDark ? "border-zinc-800/50 bg-[#0a0a0a]/50" : "border-zinc-200 bg-white/80"}`}>
           <div className="flex items-center gap-6">
             <button 
               onClick={() => setIsSidebarOpen(true)} 
@@ -82,9 +83,7 @@ function SuperAdminLayoutShell({ children }: { children: React.ReactNode }) {
                 <Bell size={18} />
                 <span className="absolute top-3 right-3 h-1.5 w-1.5 bg-orange-600 rounded-full group-hover:animate-ping" />
               </button>
-              <div className="h-10 w-10 rounded-xl bg-orange-600 flex items-center justify-center font-black text-white text-xs shadow-[0_0_15px_rgba(234,88,12,0.3)]">
-                RA
-              </div>
+              <SuperAdminProfileMenu isDark={isDark} />
             </div>
           </div>
         </header>
