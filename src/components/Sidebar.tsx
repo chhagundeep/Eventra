@@ -25,6 +25,7 @@ const ROLE_MENUS = {
     { name: "Trainer Management", icon: GraduationCap, path: "/admin/trainers" },
     { name: "Organization Users", icon: Users, path: "/admin/users" },
     { name: "Events Manager", icon: Calendar, path: "/admin/events" },
+    { name: "Event Calendar", icon: Activity, path: "/admin/schedule" },
   ],
   "trainer": [
     { name: "Active Sessions", icon: Activity, path: "/trainer" },

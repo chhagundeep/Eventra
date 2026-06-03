@@ -159,8 +159,15 @@ export default function SuperAdminSchedule() {
                             {dayEvents.slice(0, 2).map((event, idx) => (
                               <button 
                                 key={idx} 
-                                onClick={() => router.push(`/admin/events/${event.id}`)}
-                                className="w-full text-left bg-orange-600/10 border-l-2 border-orange-600 p-0.5 rounded-sm transition-colors"
+                                type="button"
+                                onClick={() => {
+                                  const orgId = event.tenantId;
+                                  const evtId = event.eventId || event.id;
+                                  if (orgId && evtId) {
+                                    router.push(`/super-admin/organizations/${orgId}/events/${evtId}`);
+                                  }
+                                }}
+                                className="w-full text-left bg-orange-600/10 border-l-2 border-orange-600 p-0.5 rounded-sm transition-colors hover:bg-orange-600/20"
                               >
                                 <p className="text-[7px] font-black uppercase truncate text-white">{event.title}</p>
                               </button>
